@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 987 bytes
+; Code size: 979 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -61,7 +61,7 @@ _tls_x25519_secret:
 ;   arg3 = their_public
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
-; Timing: 489,408,795 cc
+; Timing: 489,404,694 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, (iy + arg3)
@@ -73,7 +73,7 @@ _tls_x25519_publickey:
 ;   arg2 = private_key
 ;   arg3 = yield_fn
 ;   arg4 = yield_data
-; Timing: 489,408,775 cc
+; Timing: _tls_x25519_secret - 20 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, _9
@@ -104,11 +104,9 @@ scalar.size := 5
     add     ix, sp
     ld      sp, ix
 ; Setup some variables
-    ld      hl, _clamped + INT_SIZE - 1
-    ld      (ix + scalar.clampedPointer), hl
-    ld      a, 64
+    ld      a, 1 shl 6
     ld      (ix + scalar.clampedMask), a
-    ld      a, 255
+    sbc     a, a
     ld      (ix + scalar.mainLoopIndex), a
 ; Copy scalar to clamped, and edit byte 0 and byte 31
     ld      de, _clamped
@@ -120,7 +118,8 @@ scalar.size := 5
     inc     de
     ld      bc, INT_SIZE - 1
     ldir
-    dec     de
+    dec     de              ; DE = _clamped + INT_SIZE - 1
+    ld      (ix + scalar.clampedPointer), de
     ld      a, (de)
     and     a, 0x7F
     or      a, 0x40
@@ -194,15 +193,12 @@ scalar.size := 5
     swap _c, _d
 
 ; Get to the next bit
-    ld      a, (ix + scalar.clampedMask)
-    srl     a
+    rrc     (ix + scalar.clampedMask)
     jr      nc, .continue
     ld      hl, (ix + scalar.clampedPointer)
     dec     hl
     ld      (ix + scalar.clampedPointer), hl
-    ld      a, 128
 .continue:
-    ld      (ix + scalar.clampedMask), a
     dec     (ix + scalar.mainLoopIndex)
     jq      nz, .mainLoop
     ld      de, _b
