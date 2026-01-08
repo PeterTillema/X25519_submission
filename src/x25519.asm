@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1171 bytes
+; Code size: 1161 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -61,7 +61,7 @@ _tls_x25519_secret:
 ;   arg3 = their_public
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
-; Timing: 479,166,543 cc
+; Timing: 479,044,343 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, (iy + arg3)
@@ -352,28 +352,38 @@ mul.size := 4
     inc     de
     dec     iyl
     jr      nz, .addMul38Loop
-    ld      e, 0            ; e = 0, used for this adc and the next adc
 ; Propagate the last carry byte back to the first falue
-    adc     a, e
+    adc     a, 0
     ld      c, a
     ld      b, 38
     mlt     bc
     ld      hl, _product
+    ld      de, (hl)
+    ex      de, hl
+    add     hl, bc
+    ex      de, hl
+    ld      (hl), de
+    inc     hl
+    inc     hl
+    inc     hl
+    ld      bc, 0
+repeat (INT_SIZE - 3) / 3
+    ld      de, (hl)
+    ex      de, hl
+    adc     hl, bc
+    ex      de, hl
+    ld      (hl), de
+    inc     hl
+    inc     hl
+    inc     hl
+end repeat
     ld      a, (hl)
-    add     a, c
+    adc     a, b
     ld      (hl), a
     inc     hl
     ld      a, (hl)
     adc     a, b
     ld      (hl), a
-    inc     hl
-repeat INT_SIZE - 2
-    ld      a, (hl)
-    adc     a, e
-    ld      (hl), a
-    inc     hl
-end repeat
-    ld      b, e
 ; Copy product to out
     ld      de, (ix + sparg1 + mul.size)
     ld      hl, _product
