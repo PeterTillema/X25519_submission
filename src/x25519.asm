@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 988 bytes
+; Code size: 987 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -12,6 +12,12 @@ P_OFFSET = 19
     public _tls_x25519_publickey
 
 ; Some macros to make code more clear
+macro swap in1, in2
+    ld      de, in1
+    ld      hl, in2
+    call    _swap
+end macro
+
 macro fmul out, in1, in2
     ld      hl, in2
     push    hl
@@ -55,7 +61,7 @@ _tls_x25519_secret:
 ;   arg3 = their_public
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
-; Timing: 489,409,815 cc
+; Timing: 489,408,795 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, (iy + arg3)
@@ -67,7 +73,7 @@ _tls_x25519_publickey:
 ;   arg2 = private_key
 ;   arg3 = yield_fn
 ;   arg4 = yield_data
-; Timing: 489,409,795 cc
+; Timing: 489,408,775 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, _9
@@ -152,17 +158,13 @@ scalar.size := 5
     ld      hl, (ix + scalar.clampedPointer)
     ld      a, (hl)
     and     a, (ix + scalar.clampedMask)
-    sub     a, 1            ; Set -> cf is true; reset -> cf is false
-    ccf
+    add     a, -1           ; Set -> cf is true; reset -> cf is false
+; First swaps
     push    af
-    ld      de, _a          ; swap(a, b, bit)
-    ld      hl, _b
-    call    _swap
+    swap _a, _b
     pop     af
     push    af
-    ld      de, _c          ; swap(c, d, bit)
-    ld      hl, _d
-    call    _swap
+    swap _c, _d
     pop     af
     push    af
 ; Do the main calculations!
@@ -187,13 +189,9 @@ scalar.size := 5
 ; Final swaps
     pop     af
     push    af
-    ld      de, _a          ; swap(a, b, bit)
-    ld      hl, _b
-    call    _swap
+    swap _a, _b
     pop     af
-    ld      de, _c          ; swap(c, d, bit)
-    ld      hl, _d
-    call    _swap
+    swap _c, _d
 
 ; Get to the next bit
     ld      a, (ix + scalar.clampedMask)
