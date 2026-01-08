@@ -61,7 +61,7 @@ _tls_x25519_secret:
 ;   arg3 = their_public
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
-; Timing: 489,404,694 cc
+; Timing: 489,097,338 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, (iy + arg3)
@@ -201,25 +201,30 @@ scalar.size := 5
 .continue:
     dec     (ix + scalar.mainLoopIndex)
     jq      nz, .mainLoop
+; Copy _c to _b
     ld      de, _b
     ld      hl, _c
     ld      bc, INT_SIZE
     ldir
+; Inverse _c
     ld      b, 254
 .inverseLoop:
+    dec     b
+    jr      z, .continue2
     push    bc
     fmul _c, _c, _c
     pop     bc
     ld      a, b
-    cp      a, 3
-    jr      z, .continue2
-    cp      a, 5
-    jr      z, .continue2
+    cp      a, 2
+    jr      z, .inverseLoop
+    cp      a, 4
+    jr      z, .inverseLoop
     push    bc
     fmul _c, _c, _b
     pop     bc
+    jr      .inverseLoop
 .continue2:
-    djnz    .inverseLoop
+; Final multiplication, putting the result in out
     fmul (ix + sparg1 + scalar.size), _a, _c
     lea     hl, ix + scalar.size
     ld      sp, hl
