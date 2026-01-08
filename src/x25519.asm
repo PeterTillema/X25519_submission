@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 979 bytes
+; Code size: 978 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -61,7 +61,7 @@ _tls_x25519_secret:
 ;   arg3 = their_public
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
-; Timing: 489,097,338 cc
+; Timing: 488,612,418 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, (iy + arg3)
@@ -295,7 +295,7 @@ mul.size := 7
 ;  iyh = num to multiply with
 ;  iyl = loop counter (32..0)
     xor     a, a            ; Reset carry + carry flag
-.innerLoop1:
+.mulSingleByteLoop:
     ld      c, (hl)
     inc     hl
     ld      b, iyh
@@ -305,13 +305,11 @@ mul.size := 7
     inc     de
     ld      a, b
     dec     iyl
-    jr      nz, .innerLoop1
-    ld      c, 0            ; Only used for the adc here and the adc within .addLoop2 (which is called many times, so a nice speedup)
+    jr      nz, .mulSingleByteLoop
+    ld      c, 0            ; Only used for the adc here and the adc within .addLoop2
     adc     a, c
     ld      (de), a
-; If the calculation is done for a single byte, add the 33-byte value to the product output. The carry flag is always
-; reset, as the "adc a, 0" never overflows. This is because a is the upper byte of b*c, which is at most FE, so adc is
-; at most FF.
+; Add the 33-byte value to the product output
     ld      de, _temp
     ld      hl, (ix + mul.productOutputPointer)
     ld      b, INT_SIZE + 1
@@ -335,11 +333,12 @@ mul.size := 7
     ld      (ix + mul.productOutputPointer), hl
     dec     (ix + mul.outerLoopCount)
     jr      nz, .mainLoop
+
 ; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and store to temp
     ld      de, _temp           ; HL now points to _product + INT_SIZE
     xor     a, a                ; Reset carry for the next calculations
     ld      iyl, INT_SIZE
-.innerLoop2:
+.calcMul38Loop:
     ld      c, (hl)
     inc     hl
     ld      b, 38
@@ -349,7 +348,7 @@ mul.size := 7
     inc     de
     ld      a, b
     dec     iyl
-    jr      nz, .innerLoop2
+    jr      nz, .calcMul38Loop
     adc     a, 0                ; Make sure to also save the last carry byte
     ld      (de), a
 ; Add temp to product
@@ -365,7 +364,7 @@ mul.size := 7
     djnz    .addLoop3
 ; Propagate the last carry byte back to the first value
     ld      a, (de)
-    ld      e, 0            ; Used for this adc and the next adc
+    ld      e, b            ; e = 0, used for this adc and the next adc
     adc     a, e
     ld      c, a
     ld      b, 38
@@ -380,12 +379,12 @@ mul.size := 7
     ld      (hl), a
     inc     hl
     ld      b, INT_SIZE - 2
-.testloop:
+.addCarryLoop:
     ld      a, (hl)
     adc     a, e
     ld      (hl), a
     inc     hl
-    djnz    .testloop
+    djnz    .addCarryLoop
 ; Copy temp to out
     ld      de, (ix + sparg1 + mul.size)
     ld      hl, _product
@@ -411,7 +410,7 @@ _fsub:
 ; Timing: 3302 excluding jq
     xor     a, a            ; Reset carry flag
     ld      iyl, INT_SIZE
-.loop1:
+.subtractLoop:
     ld      a, (bc)         ; out[i] = a[i] - b[i] - carry
     sbc     a, (hl)
     ld      (de), a
@@ -419,7 +418,7 @@ _fsub:
     inc     de
     inc     bc
     dec     iyl
-    jr      nz, .loop1
+    jr      nz, .subtractLoop
 ; Now out is in the range (-2^255+19, 2^255-19). In order to do a mod p, we copy out to a temp variable, add p to
 ; that and eventually swap places (all in constant time), such that either out or (out + p) is used.
     dec     de
@@ -436,12 +435,12 @@ _fsub:
     add     a, -P_OFFSET
     ld      (hl), a
     ld      b, INT_SIZE - 2
-.loop3:
+.addLoop:
     inc     hl
     ld      a, (hl)
     adc     a, 0xFF
     ld      (hl), a
-    djnz    .loop3
+    djnz    .addLoop
     inc     hl              ; Same as within the loop, but now 7F to not add the last bit
     ld      a, (hl)
     adc     a, 0x7F
@@ -460,7 +459,7 @@ _fadd:
 ; Timing: 3306
     xor     a, a            ; Reset carry flag
     ld      iyl, INT_SIZE
-.loop1:
+.addLoop:
     ld      a, (bc)         ; out[i] = a[i] + b[i] + carry
     adc     a, (hl)
     ld      (de), a
@@ -468,7 +467,7 @@ _fadd:
     inc     de
     inc     bc
     dec     iyl
-    jr      nz, .loop1
+    jr      nz, .addLoop
 ; Now out is in the range [0, 2p-2]. In order to do a mod p, we copy out to a temp variable, subtract p from
 ; that and eventually swap places (all in constant time), such that either out or (out - p) is used.
     dec     de
@@ -486,12 +485,13 @@ _calcModP:
     sub     a, -P_OFFSET
     ld      (hl), a
     ld      b, INT_SIZE - 2
-.loop2:
+    dec     c               ; c = -1
+.subtractLoop:
     inc     hl
     ld      a, (hl)
-    sbc     a, 0xFF
+    sbc     a, c
     ld      (hl), a
-    djnz    .loop2
+    djnz    .subtractLoop
     inc     hl              ; Same as within the loop, but now 7F to not subtract the last bit
     ld      a, (hl)
     sbc     a, 0x7F
@@ -509,8 +509,8 @@ _swap:
 ; Timing: 2756cc
     sbc     a, a
     ld      c, a            ; c = cf ? 0xFF : 0
-    ld      iyl, 32
-.loop:
+    ld      iyl, INT_SIZE
+.swapLoop:
     ld      a, (de)         ; t = c & (a[i] ^ b[i])
     xor     a, (hl)
     and     a, c
@@ -523,7 +523,7 @@ _swap:
     inc     hl
     inc     de
     dec     iyl
-    jr      nz, .loop
+    jr      nz, .swapLoop
     ret
 
 
