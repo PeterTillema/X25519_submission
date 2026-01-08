@@ -1,6 +1,10 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
+; Code size: 976 bytes
+; Data size: 321 bytes
+; Read only data size: 64 bytes
+
     assume adl=1
     section .text
 
@@ -8,14 +12,16 @@ P_OFFSET = 19
     public _tls_x25519_secret
     public _tls_x25519_publickey
 
-macro fmul out, in1, in2
+macro fmul out, in1, in2,
     ld      hl, in2
     push    hl
     if ~(in1 relativeto in2) | in1 <> in2
     ld      hl, in1
     end if
     push    hl
+    if ~(in1 relativeto out) | in1 <> out
     ld      hl, out
+    end if
     push    hl
     call    _fmul
     pop     hl, hl, hl
@@ -42,8 +48,7 @@ _tls_x25519_secret:
 ;   (sp + 9) = their_public
 ;   (sp + 12) = yield_fn
 ;   (sp + 15) = yield_data
-; Size: 988 bytes
-; Timing: 489,421,971 cc = 10.196 s
+; Timing: 489,409,803 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, (iy + 9)
@@ -63,8 +68,7 @@ _tls_x25519_publickey:
 ;   (sp + 6) = private_key
 ;   (sp + 9) = yield_fn
 ;   (sp + 12) = yield_data
-; Size: 988 bytes
-; Timing: 489,421,971 cc = 10.196 s
+; Timing: 489,409,795 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, _9
@@ -526,7 +530,7 @@ _swap:
 
 
 repeat 1, x:$-_tls_x25519_publickey
-    display `x, ' bytes'
+    display 'Code size: ', `x, ' bytes', 10
 end repeat
 
     section .data
@@ -563,6 +567,11 @@ _temp:
     rb      INT_SIZE + 1
 
 
+repeat 1, x:$-_clamped
+    display 'Data size: ', `x, ' bytes', 10
+end repeat
+
+
     section .rodata
     private _9
     private _121665
@@ -578,3 +587,8 @@ _121665:
     db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+
+
+repeat 1, x:$-_9
+    display 'Read only data size: ', `x, ' bytes', 10
+end repeat
