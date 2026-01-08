@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 962 bytes
+; Code size: 959 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -61,7 +61,7 @@ _tls_x25519_secret:
 ;   arg3 = their_public
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
-; Timing: 484,363,098 cc
+; Timing: 482,792,828 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, (iy + arg3)
@@ -258,9 +258,8 @@ _fmul:
 ; Timing: 152,138 cc
 mul:
 mul.productOutputPointer := 0               ; A pointer to where the product output should be stored
-mul.mainValuePointer := 3                   ; Pointer to the current byte of the main value
-mul.outerLoopCount := 6                     ; Main count down
-mul.size := 7
+mul.outerLoopCount := 3                     ; Main count down
+mul.size := 4
 
     push    ix
     ld      ix, -mul.size
@@ -276,13 +275,11 @@ mul.size := 7
 ; Also setup the other variables
     ld      (ix + mul.outerLoopCount), INT_SIZE
     ld      hl, (ix + sparg2 + mul.size)
-    ld      (ix + mul.mainValuePointer), hl
 ; Within a loop, get a single byte from a, and multiply it with the entirety of b
 .mainLoop:
-    ld      hl, (ix + mul.mainValuePointer) ; hl -> a + index
-    ld      a, (hl)                         ; hl -> a[index]
+    ld      a, (hl)                         ; a[index]
     inc     hl
-    ld      (ix + mul.mainValuePointer), hl
+    push    hl
     ld      iyh, a
     ld      iyl, INT_SIZE
     ld      de, _temp
@@ -331,11 +328,13 @@ mul.size := 7
     ld      hl, (ix + mul.productOutputPointer)
     inc     hl
     ld      (ix + mul.productOutputPointer), hl
+    pop     hl
     dec     (ix + mul.outerLoopCount)
     jr      nz, .mainLoop
 
 ; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and store to temp
-    ld      de, _temp           ; HL now points to _product + INT_SIZE
+    ld      de, _temp
+    ld      hl, _product + INT_SIZE
     xor     a, a                ; Reset carry for the next calculations
     ld      iyl, INT_SIZE
 .calcMul38Loop:
