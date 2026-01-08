@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1161 bytes
+; Code size: 1176 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -61,7 +61,7 @@ _tls_x25519_secret:
 ;   arg3 = their_public
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
-; Timing: 479,044,343 cc
+; Timing: 464,771,383 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, (iy + arg3)
@@ -305,17 +305,24 @@ mul.size := 4
     adc     a, c
     ld      (de), a
 ; Add the 33-byte value to the product output
-    ld      de, _temp
+    ld      iy, _temp
     ld      hl, (ix + mul.productOutputPointer)
-    ld      b, INT_SIZE + 1
+    ld      a, (INT_SIZE + 1) / 3
 .addLoop1:
-    ld      a, (de)
-    adc     a, (hl)
-    ld      (hl), a
+    ld      de, (iy)        ; (hl) + (iy) -> (hl)
+    ld      bc, (hl)
+    ex      de, hl
+    adc     hl, bc
+    ex      de, hl
+    ld      (hl), de
     inc     hl
-    inc     de
-    djnz    .addLoop1
+    inc     hl
+    inc     hl
+    lea     iy, iy + 3
+    dec     a
+    jr      nz, .addLoop1
     ld      b, (ix + mul.outerLoopCount)
+    ld      c, a
 .addLoop2:
     ld      a, (hl)
     adc     a, c
