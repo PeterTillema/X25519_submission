@@ -1,18 +1,18 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 976 bytes
+; Code size: 988 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
     assume adl=1
     section .text
 
-    public _custom_fmul
     public _tls_x25519_secret
     public _tls_x25519_publickey
 
-macro fmul out, in1, in2,
+; Some macros to make code more clear
+macro fmul out, in1, in2
     ld      hl, in2
     push    hl
     if ~(in1 relativeto in2) | in1 <> in2
@@ -41,41 +41,41 @@ macro fsub out, in1, in2
     call    _fsub
 end macro
 
+arg1 := 3
+arg2 := 6
+arg3 := 9
+sparg1 := 6
+sparg2 := 9
+sparg3 := 12
+
 _tls_x25519_secret:
 ; Inputs:
-;   (sp + 3) = shared_secret
-;   (sp + 6) = my_private
-;   (sp + 9) = their_public
-;   (sp + 12) = yield_fn
-;   (sp + 15) = yield_data
-; Timing: 489,409,803 cc
+;   arg1 = shared_secret
+;   arg2 = my_private
+;   arg3 = their_public
+;   arg4 = yield_fn
+;   arg5 = yield_data
+; Timing: 489,409,815 cc
     ld      iy, 0
     add     iy, sp
-    ld      hl, (iy + 9)
-    push    hl
-    ld      hl, (iy + 6)
-    push    hl
-    ld      hl, (iy + 3)
-    push    hl
-    call    _scalarmult
-    pop     hl, hl, hl
-    ld      a, 1
-    ret
+    ld      hl, (iy + arg3)
+    jr      _calcx25519
 
 _tls_x25519_publickey:
 ; Inputs:
-;   (sp + 3) = public_key
-;   (sp + 6) = private_key
-;   (sp + 9) = yield_fn
-;   (sp + 12) = yield_data
+;   arg1 = public_key
+;   arg2 = private_key
+;   arg3 = yield_fn
+;   arg4 = yield_data
 ; Timing: 489,409,795 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, _9
+_calcx25519:
     push    hl
-    ld      hl, (iy + 6)
+    ld      hl, (iy + arg2)
     push    hl
-    ld      hl, (iy + 3)
+    ld      hl, (iy + arg1)
     push    hl
     call    _scalarmult
     pop     hl, hl, hl
@@ -84,9 +84,9 @@ _tls_x25519_publickey:
 
 _scalarmult:
 ; Inputs:
-;   (sp + 6) = out
-;   (sp + 9) = scalar
-;   (sp + 12) = point
+;   sparg1 = out
+;   sparg2 = scalar
+;   sparg3 = point
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -106,7 +106,7 @@ scalar.size := 5
     ld      (ix + scalar.mainLoopIndex), a
 ; Copy scalar to clamped, and edit byte 0 and byte 31
     ld      de, _clamped
-    ld      hl, (ix + 9 + scalar.size)
+    ld      hl, (ix + sparg2 + scalar.size)
     ld      a, (hl)
     and     a, 0xF8
     ld      (de), a
@@ -130,7 +130,7 @@ scalar.size := 5
     ld      c, INT_SIZE - 2 ; Clear _a
     ld      hl, _a + 1
     ldir
-    ld      hl, (ix + 12 + scalar.size)    ; Copy point to b
+    ld      hl, (ix + sparg3 + scalar.size)    ; Copy point to b
     ld      c, INT_SIZE
     ldir
     ld      (de), a         ; Clear c
@@ -182,7 +182,7 @@ scalar.size := 5
     fadd _a, _a, _d
     fmul _c, _c, _a
     fmul _a, _d, _f
-    fmul _d, _b, (ix + 12 + scalar.size)
+    fmul _d, _b, (ix + sparg3 + scalar.size)
     fmul _b, _e, _e
 ; Final swaps
     pop     af
@@ -226,13 +226,12 @@ scalar.size := 5
     pop     bc
 .continue2:
     djnz    .inverseLoop
-    fmul (ix + 6 + scalar.size), _a, _c
+    fmul (ix + sparg1 + scalar.size), _a, _c
     lea     hl, ix + scalar.size
     ld      sp, hl
     pop     ix
     ret
 
-_custom_fmul:
 _fmul:
 ; Performs a multiplication between two big integers mod p, and returns the result in mod p again.
 ; It works because (a mod p) * (b mod p) = (a * b) mod p. The pseudocode for multiplying looks like this:
@@ -253,9 +252,9 @@ _fmul:
 ;  - The first 32 bytes of product now contains the output mod 2p, and will be copied to the out variable.
 ;  - Either out or out - p is used, like in the fadd routine.
 ; Inputs:
-;   (sp + 3) = out
-;   (sp + 6) = a mod p
-;   (sp + 9) = b mod p
+;   sparg1 = out
+;   sparg2 = a mod p
+;   sparg3 = b mod p
 ; Size: 213 bytes (D1C620 - D1C54B)
 ; Timing: 152,138 cc
 mul:
@@ -277,7 +276,7 @@ mul.size := 7
     ldir
 ; Also setup the other variables
     ld      (ix + mul.outerLoopCount), INT_SIZE
-    ld      hl, (ix + 9 + mul.size)
+    ld      hl, (ix + sparg2 + mul.size)
     ld      (ix + mul.mainValuePointer), hl
 ; Within a loop, get a single byte from a, and multiply it with the entirety of b
 .mainLoop:
@@ -288,7 +287,7 @@ mul.size := 7
     ld      iyh, a
     ld      iyl, INT_SIZE
     ld      de, _temp
-    ld      hl, (ix + 12 + mul.size)
+    ld      hl, (ix + sparg3 + mul.size)
 ; Multiply a single byte with a 32-byte value. Multiply each byte with the single byte and add the carry from the
 ; previous product.
 ; In:
@@ -389,11 +388,11 @@ mul.size := 7
     inc     hl
     djnz    .testloop
 ; Copy temp to out
-    ld      de, (ix + 6 + mul.size)
+    ld      de, (ix + sparg1 + mul.size)
     ld      hl, _product
     ld      c, INT_SIZE
     ldir
-    ld      de, (ix + 6 + mul.size)
+    ld      de, (ix + sparg1 + mul.size)
 ; We don't need ix anymore, so pop in advance
     lea     hl, ix + mul.size
     ld      sp, hl
@@ -529,7 +528,7 @@ _swap:
     ret
 
 
-repeat 1, x:$-_tls_x25519_publickey
+repeat 1, x:$-_tls_x25519_secret
     display 'Code size: ', `x, ' bytes', 10
 end repeat
 

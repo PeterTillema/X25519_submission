@@ -14,7 +14,7 @@
  * @param yield_data    Optional: context passed to yield_fn (may be NULL)
  * @return true on success, false on error (e.g., low-order point)
  */
-bool tls_x25519_secret(
+extern bool tls_x25519_secret(
     uint8_t shared_secret[32],
     const uint8_t my_private[32],
     const uint8_t their_public[32],
@@ -35,12 +35,6 @@ extern bool tls_x25519_publickey(
     const uint8_t private_key[32],
     void (*yield_fn)(void*),
     void* yield_data
-);
-
-extern bool custom_fmul(
-    uint8_t public_key[32],
-    const uint8_t a[32],
-    const uint8_t b[32]
 );
 
 #endif //X25519_X25519_H
