@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1176 bytes
+; Code size: 1136 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -50,22 +50,10 @@ end macro
 arg1 := 3
 arg2 := 6
 arg3 := 9
+arg4 := 12
 sparg1 := 6
 sparg2 := 9
 sparg3 := 12
-
-_tls_x25519_secret:
-; Inputs:
-;   arg1 = shared_secret
-;   arg2 = my_private
-;   arg3 = their_public
-;   arg4 = yield_fn
-;   arg5 = yield_data
-; Timing: 464,771,383 cc
-    ld      iy, 0
-    add     iy, sp
-    ld      hl, (iy + arg3)
-    jr      _calcx25519
 
 _tls_x25519_publickey:
 ; Inputs:
@@ -73,26 +61,31 @@ _tls_x25519_publickey:
 ;   arg2 = private_key
 ;   arg3 = yield_fn
 ;   arg4 = yield_data
-; Timing: _tls_x25519_secret - 20 cc
+; Timing: _tls_x25519_secret + 313 cc
     ld      iy, 0
     add     iy, sp
+    ld      hl, (iy + arg3)
+    push    hl
+    ld      hl, (iy + arg2)
+    push    hl
     ld      hl, _9
-_calcx25519:
     push    hl
     ld      hl, (iy + arg2)
     push    hl
     ld      hl, (iy + arg1)
     push    hl
-    call    _scalarmult
-    pop     hl, hl, hl
-    ld      a, 1
+    call    _tls_x25519_secret
+    pop     hl, hl, hl, hl, hl
     ret
 
-_scalarmult:
+_tls_x25519_secret:
 ; Inputs:
-;   sparg1 = out
-;   sparg2 = scalar
-;   sparg3 = point
+;   arg1 = shared_secret (out)
+;   arg2 = my_private (scalar)
+;   arg3 = their_public (point)
+;   arg4 = yield_fn
+;   arg5 = yield_data
+; Timing: 464,771,150 cc
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -229,6 +222,7 @@ scalar.size := 5
     lea     hl, ix + scalar.size
     ld      sp, hl
     pop     ix
+    ld      a, 1
     ret
 
 _fmul:
