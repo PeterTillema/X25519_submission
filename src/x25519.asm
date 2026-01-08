@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1136 bytes
+; Code size: 1130 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -85,7 +85,7 @@ _tls_x25519_secret:
 ;   arg3 = their_public (point)
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
-; Timing: 464,771,150 cc
+; Timing: 464,771,136 cc
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -136,14 +136,8 @@ scalar.size := 5
     ld      hl, _c
     ld      c, INT_SIZE - 1
     ldir
-    inc     a               ; d[0] = 1
-    ld      (de), a
-    inc     de
-    dec     a
-    ld      (de), a
-    inc     de
-    ld      c, INT_SIZE - 2 ; Clear _d
-    ld      hl, _d + 1
+    ld      hl, _a          ; _d = _a
+    ld      c, INT_SIZE
     ldir
 .mainLoop:
     ; Get bit
