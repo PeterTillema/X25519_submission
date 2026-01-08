@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 959 bytes
+; Code size: 948 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -61,7 +61,7 @@ _tls_x25519_secret:
 ;   arg3 = their_public
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
-; Timing: 482,792,828 cc
+; Timing: 482,337,633 cc
     ld      iy, 0
     add     iy, sp
     ld      hl, (iy + arg3)
@@ -249,13 +249,11 @@ _fmul:
 ;  - The last byte from the intermediate result (the carry) will be propagated back, namely 38 * (value of last byte) will
 ;    be added to the first byte again. This can again trigger an overflow, so propagate the carry even further.
 ;  - The first 32 bytes of product now contains the output mod 2p, and will be copied to the out variable.
-;  - Either out or out - p is used, like in the fadd routine.
+;  - Either out or out - p is used.
 ; Inputs:
 ;   sparg1 = out
 ;   sparg2 = a
 ;   sparg3 = b
-; Size: 213 bytes (D1C620 - D1C54B)
-; Timing: 152,138 cc
 mul:
 mul.productOutputPointer := 0               ; A pointer to where the product output should be stored
 mul.outerLoopCount := 3                     ; Main count down
@@ -332,38 +330,32 @@ mul.size := 4
     dec     (ix + mul.outerLoopCount)
     jr      nz, .mainLoop
 
-; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and store to temp
-    ld      de, _temp
+; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and add to product directly
+    ld      de, _product
     ld      hl, _product + INT_SIZE
     xor     a, a                ; Reset carry for the next calculations
     ld      iyl, INT_SIZE
-.calcMul38Loop:
+.addMul38Loop:
     ld      c, (hl)
     inc     hl
     ld      b, 38
     mlt     bc
     adc     a, c
-    ld      (de), a
-    inc     de
-    ld      a, b
-    dec     iyl
-    jr      nz, .calcMul38Loop
-    adc     a, 0                ; Make sure to also save the last carry byte
-    ld      (de), a
-; Add temp to product
-    ld      de, _temp
-    ld      hl, _product
-    ld      b, INT_SIZE
-.addLoop3:
-    ld      a, (de)
-    adc     a, (hl)
+    ld      c, a            ; Temporarily save a
+    ld      a, b            ; b + cf -> b
+    adc     a, 0
+    ld      b, a
+    ld      a, c            ; Restore a
+    ex      de, hl
+    add     a, (hl)
     ld      (hl), a
-    inc     hl
+    ld      a, b
+    ex      de, hl
     inc     de
-    djnz    .addLoop3
-; Propagate the last carry byte back to the first value
-    ld      a, (de)
-    ld      e, b            ; e = 0, used for this adc and the next adc
+    dec     iyl
+    jr      nz, .addMul38Loop
+    ld      e, 0            ; e = 0, used for this adc and the next adc
+; Propagate the last carry byte back to the first falue
     adc     a, e
     ld      c, a
     ld      b, 38
@@ -444,8 +436,6 @@ _fsub:
 ;   DE = out
 ;   BC = a mod p
 ;   HL = b mod p
-; Size: 49 bytes excluding jq
-; Timing: 3302 excluding jq
     xor     a, a            ; Reset carry flag
     ld      iyl, INT_SIZE
 .subtractLoop:
