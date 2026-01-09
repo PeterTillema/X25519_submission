@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1044 bytes
-; Data size: 321 bytes
+; Code size: 1042 bytes
+; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
     assume adl=1
@@ -78,7 +78,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       375,224,988 cc
+; Timing current:       375,224,980 cc
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -107,8 +107,7 @@ scalar.size := 5
     dec     de              ; DE = _clamped + INT_SIZE - 1
     ld      (ix + scalar.clampedPointer), de
     ld      a, (de)
-    and     a, 0x7F
-    or      a, 0x40
+    or      a, 0x40         ; and a, 0x7F is not necessary, as the last bit is not used at all
     ld      (de), a
     inc     de
 ; Fill _a to _d
@@ -214,27 +213,24 @@ scalar.size := 5
 
 _fmul:
 ; Performs a multiplication between two big integers, and returns the result in mod p.
-; It works because (a mod p) * (b mod p) = (a * b) mod p. The pseudocode for multiplying looks like this:
-;  - Reset product outcome to zeroes
-;  - For each byte in input a:
-;    - Multiply with the entire value of b, and store to temp ([0,2^8-1] * [0,2^256-1] -> [0, 2^264-1], so it fits in 33 bytes)
-;    - Add temp to the right offset to the product output, and add carry + zeroes for the remaining bytes in product
+; It works because (a mod 2p) * (b mod 2p) = (a * b) mod 2p = (a * b) mod p. The pseudocode for multiplying looks like this:
+;  - Reset first 32 bytes of product outcome to zeroes
+;  - For each byte in input a, multiply the value with the entirety of b, and add to the product output at the correct offset.
 ;  - Now product is a 64-byte value, i.e.:
 ;      product = t_0 * 2^0 + t_1 * 2^8 + ... + t_31 * 2^248 + t_32 * 2^256 + t_33 * 2^264 + ... + t_63 * 2^504
 ;              = t_0 * 2^0 + t_1 * 2^8 + ... + t_31 * 2^248 + t_32 * 2^0 * (2p + 38) + t_33 * 2^1 * (2p + 38) + ... + t_63 * 2^248 * (2p + 38)
 ;              = t_0 * 2^0 + t_1 * 2^8 + ... + t_31 * 2^248 + t_32 * 38 * 2^0 + t_33 * 38 * 2^1 + ... + t_63 * 38 * 2^248 (mod 2p)
 ;              = (t_0 + 38 * t_32) * 2^0 + ... + (t_30 + 38 * t_62) * 2^240 + (t_31 + 38 * t_63) * 2^248 (mod 2p)
 ;    That means that for each index in the lower 32 bytes, we can add 38*product[index + 32] and the result becomes mod 2p.
-;  - We first calculate 38 times each byte in the second half of the product, and add them together. This gives a 33-byte value
-;  - Add this result to the first 32 bytes of product
+;  - Calculate 38 times each byte in the second half of the product, and add it to the first half of the product output.
 ;  - The last byte from the intermediate result (the carry) will be propagated back, namely 38 * (value of last byte) will
 ;    be added to the first byte again. This can again trigger an overflow, so propagate the carry even further.
 ;  - The first 32 bytes of product now contains the output mod 2p, and will be copied to the out variable.
 ;  - Either out or out - p is used.
 ; Inputs:
 ;   DE = out
-;   BC = a mod p
-;   HL = b mod p
+;   BC = a mod 2p
+;   HL = b mod 2p
 mul:
 mul.productOutputPointer := 0               ; A pointer to where the product output should be stored
 mul.outerLoopCount := 3                     ; Main count down
@@ -261,7 +257,7 @@ mul.size := 13
 ; Also setup the other variables
     ld      (ix + mul.outerLoopCount), INT_SIZE
     ld      hl, (ix + mul.arg1)
-; Within a loop, get a single byte from a, and multiply it with the entirety of b
+; Within a loop, get a single byte from a, and multiply it with the entirety of b, adding it to the product immediately
 .mainLoop:
     ld      a, (hl)                         ; a[index]
     inc     hl
@@ -270,13 +266,6 @@ mul.size := 13
     ld      iyl, INT_SIZE
     ld      de, (ix + mul.productOutputPointer)
     ld      hl, (ix + mul.arg2)
-; Multiply a single byte with a 32-byte value. Multiply each byte with the single byte and add the carry from the
-; previous product.
-; In:
-;  hl = b
-;  de = out
-;  iyh = num to multiply with
-;  iyl = loop counter (32..0)
     xor     a, a            ; Reset carry + carry flag
 .addMulSingleByteLoop:
     ld      c, (hl)
@@ -284,18 +273,19 @@ mul.size := 13
     ld      b, iyh
     mlt     bc
     adc     a, c
-    ld      c, a
-    ld      a, b
+    ld      c, a            ; Temporarily save a
+    ld      a, b            ; b + cf -> b
     adc     a, 0
     ld      b, a
-    ld      a, (de)
+    ld      a, (de)         ; Restore a and add to (de)
     add     a, c
     ld      (de), a
     ld      a, b
     inc     de
     dec     iyl
     jr      nz, .addMulSingleByteLoop
-; Add the last carry byte to the product
+; Add the last carry byte to the product. Since we work from low to high indexes, this last carry byte is guarenteed to
+; not overlap with the previous product result, thus storing it directly works properly.
     adc     a, 0
     ld      (de), a
 ; Continue with the main loop
@@ -489,7 +479,6 @@ end repeat
     private _e
     private _f
     private _product
-    private _temp
 
 ; Used for scalar
 _clamped:
@@ -509,9 +498,6 @@ _f:
 ; Used for multiplication
 _product:
     rb      INT_SIZE * 2
-; Temporary usage
-_temp:
-    rb      INT_SIZE + 1
 
 
 repeat 1, x:$-_clamped
