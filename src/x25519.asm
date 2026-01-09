@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1092 bytes
+; Code size: 1057 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -78,7 +78,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       464,718,108 cc
+; Timing current:       378,347,148 cc
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -254,7 +254,7 @@ mul.size := 13
 ; Setup the product output
     ld      hl, _product
     ld      (ix + mul.productOutputPointer), hl
-    ld      bc, INT_SIZE * 2 - 1
+    ld      bc, INT_SIZE - 1
     ld      (hl), b
     ld      de, _product + 1
     ldir
@@ -268,7 +268,7 @@ mul.size := 13
     push    hl
     ld      iyh, a
     ld      iyl, INT_SIZE
-    ld      de, _temp
+    ld      de, (ix + mul.productOutputPointer)
     ld      hl, (ix + mul.arg2)
 ; Multiply a single byte with a 32-byte value. Multiply each byte with the single byte and add the carry from the
 ; previous product.
@@ -278,45 +278,26 @@ mul.size := 13
 ;  iyh = num to multiply with
 ;  iyl = loop counter (32..0)
     xor     a, a            ; Reset carry + carry flag
-.mulSingleByteLoop:
+.addMulSingleByteLoop:
     ld      c, (hl)
     inc     hl
     ld      b, iyh
     mlt     bc
     adc     a, c
-    ld      (de), a
-    inc     de
-    ld      a, b
-    dec     iyl
-    jr      nz, .mulSingleByteLoop
-    ld      c, 0            ; Only used for the adc here and the adc within .addLoop2
-    adc     a, c
-    ld      (de), a
-; Add the 33-byte value to the product output
-    ld      iy, _temp
-    ld      hl, (ix + mul.productOutputPointer)
-    ld      a, (INT_SIZE + 1) / 3
-.addLoop1:
-    ld      de, (iy)        ; (hl) + (iy) -> (hl)
-    ld      bc, (hl)
-    ex      de, hl
-    adc     hl, bc
-    ex      de, hl
-    ld      (hl), de
-    inc     hl
-    inc     hl
-    inc     hl
-    lea     iy, iy + 3
-    dec     a
-    jr      nz, .addLoop1
-    ld      b, (ix + mul.outerLoopCount)
     ld      c, a
-.addLoop2:
-    ld      a, (hl)
-    adc     a, c
-    ld      (hl), a
-    inc     hl
-    djnz    .addLoop2
+    ld      a, b
+    adc     a, 0
+    ld      b, a
+    ld      a, (de)
+    add     a, c
+    ld      (de), a
+    ld      a, b
+    inc     de
+    dec     iyl
+    jr      nz, .addMulSingleByteLoop
+; Add the last carry byte to the product
+    adc     a, 0
+    ld      (de), a
 ; Continue with the main loop
     ld      hl, (ix + mul.productOutputPointer)
     inc     hl
