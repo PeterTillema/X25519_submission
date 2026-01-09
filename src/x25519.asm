@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1068 bytes
+; Code size: 1098 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -46,6 +46,8 @@ arg4 := 12
 sparg1 := 6
 sparg2 := 9
 sparg3 := 12
+sparg4 := 15
+sparg5 := 18
 
 _tls_x25519_publickey:
 ; Inputs:
@@ -56,9 +58,9 @@ _tls_x25519_publickey:
 ; Timing: _tls_x25519_secret + 313 cc
     ld      iy, 0
     add     iy, sp
-    ld      hl, (iy + arg3)
+    ld      hl, (iy + arg4)
     push    hl
-    ld      hl, (iy + arg2)
+    ld      hl, (iy + arg3)
     push    hl
     ld      hl, _9
     push    hl
@@ -78,7 +80,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       378,336,306 cc
+; Timing current:       378,349,906 cc      ; Excluding yield_fn
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -133,13 +135,37 @@ scalar.size := 6
     ld      c, INT_SIZE
     ldir
 .mainLoop:
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;;;;;;;;;;;;;; CHANGE THIS LOGIC TO FIT YOUR NEEDS ;;;;;;;;;;;;;;
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ; A loops back from 255 to 1, so the current logic calls the yield_fn function every 100 loops (every ~3 seconds)
+    ld      a, (ix + scalar.mainLoopIndex)
+    cp      a, 155
+    jr      z, .yieldFn
+    cp      a, 55
+    jr      nz, .noYieldFn
+.yieldFn:
+    ld      hl, (ix + scalar.size + sparg4)
+    add     hl, de
+    or      a, a
+    sbc     hl, de
+    jr      z, .noYieldFn
+    ld      de, (ix + scalar.size + sparg5)
+    push    de
+    call    _jumpHL
+    pop     de
+.noYieldFn:
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;;;;;;;;;;;;; /CHANGE THIS LOGIC TO FIT YOUR NEEDS ;;;;;;;;;;;;;;
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
     ; Get bit
     ld      hl, (ix + scalar.clampedPointer)
     ld      a, (hl)
     and     a, (ix + scalar.clampedMask)
     ld      (ix + scalar.clampedByte), a
-    add     a, -1           ; Set -> cf is true; reset -> cf is false
 ; First swaps
+    add     a, -1           ; Set -> cf is true; reset -> cf is false
     swap _a, _b
     ld      a, (ix + scalar.clampedByte)
     add     a, -1
@@ -207,6 +233,9 @@ scalar.size := 6
     pop     ix
     ld      a, 1
     ret
+
+_jumpHL:
+    jp      (hl)
 
 _fmul:
 ; Performs a multiplication between two big integers, and returns the result in mod p.
