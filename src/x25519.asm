@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1098 bytes
+; Code size: 1097 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -80,7 +80,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       378,349,902 cc      ; Excluding yield_fn
+; Timing current:       378,325,482 cc      ; Assuming yield_fn = NULL
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -405,7 +405,33 @@ end repeat
     ld      (hl), a
     ccf                     ; If the carry flag WAS set, out < p, so no swap needed. Flip the carry flag and call the swap
     pop     hl              ; hl -> temp
-    jq      _swap
+
+_swap:
+; Eventually swaps 2 big integers based on the carry flag. Performs the swap in constant time to prevent timing attacks
+; Inputs:
+;   DE = a
+;   HL = b
+;   cf = swap or not
+; Size: 21 bytes
+; Timing: 2756cc
+    sbc     a, a
+    ld      c, a            ; c = cf ? 0xFF : 0
+    ld      iyl, INT_SIZE
+.swapLoop:
+    ld      a, (de)         ; t = c & (a[i] ^ b[i])
+    xor     a, (hl)
+    and     a, c
+    ld      b, a
+    xor     a, (hl)         ; b[i] ^= t
+    ld      (hl), a
+    ld      a, (de)         ; a[i] ^= t
+    xor     a, b
+    ld      (de), a
+    inc     hl
+    inc     de
+    dec     iyl
+    jr      nz, .swapLoop
+    ret
 
 _fadd:
 ; Performs an addition between two big integers mod p, and returns the result without any mod. This is possible because
@@ -472,33 +498,7 @@ _fsub:
     adc     a, 0x7F
     ld      (hl), a
     pop     hl              ; hl -> temp
-
-_swap:
-; Eventually swaps 2 big integers based on the carry flag. Performs the swap in constant time to prevent timing attacks
-; Inputs:
-;   DE = a
-;   HL = b
-;   cf = swap or not
-; Size: 21 bytes
-; Timing: 2756cc
-    sbc     a, a
-    ld      c, a            ; c = cf ? 0xFF : 0
-    ld      iyl, INT_SIZE
-.swapLoop:
-    ld      a, (de)         ; t = c & (a[i] ^ b[i])
-    xor     a, (hl)
-    and     a, c
-    ld      b, a
-    xor     a, (hl)         ; b[i] ^= t
-    ld      (hl), a
-    ld      a, (de)         ; a[i] ^= t
-    xor     a, b
-    ld      (de), a
-    inc     hl
-    inc     de
-    dec     iyl
-    jr      nz, .swapLoop
-    ret
+    jq      _swap
 
 
 repeat 1, x:$-_tls_x25519_secret
