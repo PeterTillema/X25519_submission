@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1042 bytes
+; Code size: 1052 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -78,12 +78,13 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       375,224,980 cc
+; Timing current:       375,220,390 cc
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
-scalar.mainLoopIndex := 4                   ; Main loop index
-scalar.size := 5
+scalar.clampedByte := 4                     ; The byte in the clamped array
+scalar.mainLoopIndex := 5                   ; Main loop index
+scalar.size := 6
 
     push    ix
     ld      ix, -scalar.size
@@ -136,15 +137,13 @@ scalar.size := 5
     ld      hl, (ix + scalar.clampedPointer)
     ld      a, (hl)
     and     a, (ix + scalar.clampedMask)
+    ld      (ix + scalar.clampedByte), a
     add     a, -1           ; Set -> cf is true; reset -> cf is false
 ; First swaps
-    push    af
     swap _a, _b
-    pop     af
-    push    af
+    ld      a, (ix + scalar.clampedByte)
+    add     a, -1
     swap _c, _d
-    pop     af
-    push    af
 ; Do the main calculations!
     fadd _e, _a, _c
     fsub _a, _a, _c
@@ -165,10 +164,11 @@ scalar.size := 5
     fmul _d, _b, (ix + sparg3 + scalar.size)
     fmul _b, _e, _e
 ; Final swaps
-    pop     af
-    push    af
+    ld      a, (ix + scalar.clampedByte)
+    add     a, -1
     swap _a, _b
-    pop     af
+    ld      a, (ix + scalar.clampedByte)
+    add     a, -1
     swap _c, _d
 
 ; Get to the next bit
