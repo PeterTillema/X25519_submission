@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1057 bytes
+; Code size: 1044 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -78,7 +78,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       378,347,148 cc
+; Timing current:       375,224,988 cc
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -390,73 +390,6 @@ end repeat
     ld      (hl), a
     ccf                     ; If the carry flag WAS set, out < p, so no swap needed. Flip the carry flag and call the swap
     pop     hl              ; hl -> temp
-    jq      _swap
-
-_fadd:
-; Performs an addition between two big integers mod p, and returns the result without any mod. This is possible because
-; the output is used as an input for multiplication, which handles overflows itself.
-; Inputs:
-;   DE = out
-;   BC = a mod p
-;   HL = b mod p
-    xor     a, a            ; Reset carry flag
-    ld      iyl, INT_SIZE
-.addLoop:
-    ld      a, (bc)         ; out[i] = a[i] + b[i] + carry
-    adc     a, (hl)
-    ld      (de), a
-    inc     hl
-    inc     de
-    inc     bc
-    dec     iyl
-    jr      nz, .addLoop
-    ret
-
-_fsub:
-; Performs a subtraction between two big integers mod p, and returns the result in mod p again.
-; It works because (a mod p) - (b mod p) = (a - b) mod p.
-; Inputs:
-;   DE = out
-;   BC = a mod p
-;   HL = b mod p
-    xor     a, a            ; Reset carry flag
-    ld      iyl, INT_SIZE
-.subtractLoop:
-    ld      a, (bc)         ; out[i] = a[i] - b[i] - carry
-    sbc     a, (hl)
-    ld      (de), a
-    inc     hl
-    inc     de
-    inc     bc
-    dec     iyl
-    jr      nz, .subtractLoop
-; Now out is in the range (-2^255+19, 2^255-19). In order to do a mod p, we copy out to a temp variable, add p to
-; that and eventually swap places (all in constant time), such that either out or (out + p) is used.
-    dec     de
-    ex      de, hl          ; hl -> out + 31
-    ld      de, _temp + INT_SIZE - 1
-    ld      bc, INT_SIZE
-    lddr
-    ex      de, hl
-    inc     hl              ; hl -> temp
-    inc     de              ; de -> out
-    push    hl
-; Add p to temp (inline)
-    ld      a, (hl)
-    add     a, -P_OFFSET
-    ld      (hl), a
-    ld      b, INT_SIZE - 2
-.addLoop:
-    inc     hl
-    ld      a, (hl)
-    adc     a, 0xFF
-    ld      (hl), a
-    djnz    .addLoop
-    inc     hl              ; Same as within the loop, but now 7F to not add the last bit
-    ld      a, (hl)
-    adc     a, 0x7F
-    ld      (hl), a
-    pop     hl              ; hl -> temp
 
 _swap:
 ; Eventually swaps 2 big integers based on the carry flag. Performs the swap in constant time to prevent timing attacks
@@ -483,6 +416,63 @@ _swap:
     inc     de
     dec     iyl
     jr      nz, .swapLoop
+    ret
+
+_fadd:
+; Performs an addition between two big integers mod p, and returns the result in mod 2p. This output is only used for
+; multiplication, so it's fine to not calculate mod p as well.
+; Inputs:
+;   DE = out
+;   BC = a mod p
+;   HL = b mod p
+    xor     a, a            ; Reset carry flag
+    ld      iyl, INT_SIZE
+.addLoop:
+    ld      a, (bc)         ; out[i] = a[i] + b[i] + carry
+    adc     a, (hl)
+    ld      (de), a
+    inc     hl
+    inc     de
+    inc     bc
+    dec     iyl
+    jr      nz, .addLoop
+    ret
+
+_fsub:
+; Performs a subtraction between two big integers mod p, and returns the result in mod 2p. This output is only used for
+; multiplication, so it's fine to not calculate mod p as well.
+; Inputs:
+;   DE = out
+;   BC = a mod p
+;   HL = b mod p
+    xor     a, a            ; Reset carry flag
+    ld      iyl, INT_SIZE
+.subtractLoop:
+    ld      a, (bc)         ; out[i] = a[i] - b[i] - carry
+    sbc     a, (hl)
+    ld      (de), a
+    inc     hl
+    inc     de
+    inc     bc
+    dec     iyl
+    jr      nz, .subtractLoop
+; Now out is in the range (-2^255+19, 2^255-19). Add p, such that the output is in the range [0, 2^256-38).
+    ld      hl, -INT_SIZE
+    add     hl, de
+    ld      a, (hl)
+    add     a, -P_OFFSET
+    ld      (hl), a
+    ld      b, INT_SIZE - 2
+.addLoop:
+    inc     hl
+    ld      a, (hl)
+    adc     a, 0xFF
+    ld      (hl), a
+    djnz    .addLoop
+    inc     hl              ; Same as within the loop, but now 7F to not add the last bit
+    ld      a, (hl)
+    adc     a, 0x7F
+    ld      (hl), a
     ret
 
 
