@@ -1,13 +1,19 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1096 bytes
+; Code size: 168 bytes
+; Relocation size: 984 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
     assume adl=1
-    section .text
 
+define ti? ti
+namespace ti?
+?cursorImage               := 0E30800h
+end namespace
+
+    section .text
     public _tls_x25519_secret
     public _tls_x25519_publickey
 
@@ -80,7 +86,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       365,421,162 cc      ; Assuming yield_fn = NULL
+; Timing current:       289,848,621 cc      ; Assuming yield_fn = NULL
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -92,6 +98,11 @@ scalar.size := 6
     ld      ix, -scalar.size
     add     ix, sp
     ld      sp, ix
+; Relocate code to be more performant
+    ld      hl, reloc.data
+    ld      de, ti.cursorImage
+    ld      bc, reloc.data.len
+    ldir
 ; Setup some variables
     ld      a, 1 shl 6
     ld      (ix + scalar.clampedMask), a
@@ -105,7 +116,7 @@ scalar.size := 6
     ld      (de), a
     inc     hl
     inc     de
-    ld      bc, INT_SIZE - 1
+    ld      c, INT_SIZE - 1
     ldir
     dec     de              ; DE = _clamped + INT_SIZE - 1
     ld      (ix + scalar.clampedPointer), de
@@ -134,7 +145,17 @@ scalar.size := 6
     ld      hl, _a          ; _d = _a
     ld      c, INT_SIZE
     ldir
-.mainLoop:
+    call    mainCalculationLoop
+; Final multiplication, putting the result in out
+    fmul (ix + sparg1 + scalar.size), _a, _c
+    lea     hl, ix + scalar.size
+    ld      sp, hl
+    pop     ix
+    ld      a, 1
+    ret
+
+virtual at ti.cursorImage
+mainCalculationLoop:
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;;;;;;;;;;;;;; CHANGE THIS LOGIC TO FIT YOUR NEEDS ;;;;;;;;;;;;;;
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -205,7 +226,7 @@ scalar.size := 6
     ld      (ix + scalar.clampedPointer), hl
 .continue:
     dec     (ix + scalar.mainLoopIndex)
-    jq      nz, .mainLoop
+    jq      nz, mainCalculationLoop
 ; Copy _c to _b
     ld      de, _b
     ld      hl, _c
@@ -215,7 +236,7 @@ scalar.size := 6
     ld      (ix + scalar.mainLoopIndex), 254
 .inverseLoop:
     dec     (ix + scalar.mainLoopIndex)
-    jr      z, .continue2
+    ret     z
     fmul _c, _c, _c
     ld      a, (ix + scalar.mainLoopIndex)
     cp      a, 2
@@ -224,14 +245,6 @@ scalar.size := 6
     jr      z, .inverseLoop
     fmul _c, _c, _b
     jr      .inverseLoop
-.continue2:
-; Final multiplication, putting the result in out
-    fmul (ix + sparg1 + scalar.size), _a, _c
-    lea     hl, ix + scalar.size
-    ld      sp, hl
-    pop     ix
-    ld      a, 1
-    ret
 
 _jumpHL:
     jp      (hl)
@@ -500,10 +513,27 @@ _fsub:
     pop     hl              ; hl -> temp
     jq      _swap
 
+    private	reloc_rodata
+load reloc_rodata: $-$$ from $$
+end virtual
 
-repeat 1, x:$-_tls_x25519_secret
+
+repeat 1, x:$-_tls_x25519_publickey
     display 'Code size: ', `x, ' bytes', 10
 end repeat
+
+repeat 1, x:reloc.data.len
+    display 'Relocation size: ', `x, ' bytes', 10
+end repeat
+
+    section	.data
+    private	reloc.data
+    private	reloc.data.len
+reloc.data:
+    db	reloc_rodata
+.len := $-.
+reloc.base := ti.cursorImage
+reloc.offset := reloc.base - reloc.data
 
     section .data
     private _clamped
