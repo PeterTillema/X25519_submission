@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1130 bytes
+; Code size: 1092 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -19,18 +19,10 @@ macro swap in1, in2
 end macro
 
 macro fmul out, in1, in2
+    ld      de, out
+    ld      bc, in1
     ld      hl, in2
-    push    hl
-    if ~(in1 relativeto in2) | in1 <> in2
-    ld      hl, in1
-    end if
-    push    hl
-    if ~(in1 relativeto out) | in1 <> out
-    ld      hl, out
-    end if
-    push    hl
     call    _fmul
-    pop     hl, hl, hl
 end macro
 
 macro fadd out, in1, in2
@@ -85,7 +77,8 @@ _tls_x25519_secret:
 ;   arg3 = their_public (point)
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
-; Timing: 464,771,136 cc
+; Timing first attempt: 482,792,828 cc
+; Timing current:       464,718,108 cc
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -239,28 +232,35 @@ _fmul:
 ;  - The first 32 bytes of product now contains the output mod 2p, and will be copied to the out variable.
 ;  - Either out or out - p is used.
 ; Inputs:
-;   sparg1 = out
-;   sparg2 = a
-;   sparg3 = b
+;   DE = out
+;   BC = a mod p
+;   HL = b mod p
 mul:
 mul.productOutputPointer := 0               ; A pointer to where the product output should be stored
 mul.outerLoopCount := 3                     ; Main count down
-mul.size := 4
+mul.arg1 := 4
+mul.arg2 := 7
+mul.out := 10
+mul.size := 13
 
     push    ix
     ld      ix, -mul.size
     add     ix, sp
     ld      sp, ix
-; First of all, setup the product output
+; Copy the input variables to the temporary storage
+    ld      (ix + mul.arg1), bc
+    ld      (ix + mul.arg2), hl
+    ld      (ix + mul.out), de
+; Setup the product output
     ld      hl, _product
     ld      (ix + mul.productOutputPointer), hl
-    ld      (hl), 0
-    ld      de, _product + 1
     ld      bc, INT_SIZE * 2 - 1
+    ld      (hl), b
+    ld      de, _product + 1
     ldir
 ; Also setup the other variables
     ld      (ix + mul.outerLoopCount), INT_SIZE
-    ld      hl, (ix + sparg2 + mul.size)
+    ld      hl, (ix + mul.arg1)
 ; Within a loop, get a single byte from a, and multiply it with the entirety of b
 .mainLoop:
     ld      a, (hl)                         ; a[index]
@@ -269,7 +269,7 @@ mul.size := 4
     ld      iyh, a
     ld      iyl, INT_SIZE
     ld      de, _temp
-    ld      hl, (ix + sparg3 + mul.size)
+    ld      hl, (ix + mul.arg2)
 ; Multiply a single byte with a 32-byte value. Multiply each byte with the single byte and add the carry from the
 ; previous product.
 ; In:
@@ -380,11 +380,11 @@ end repeat
     adc     a, b
     ld      (hl), a
 ; Copy product to out
-    ld      de, (ix + sparg1 + mul.size)
+    ld      de, (ix + mul.out)
     ld      hl, _product
     ld      c, INT_SIZE
     ldir
-    ld      de, (ix + sparg1 + mul.size)
+    ld      de, (ix + mul.out)
 ; We don't need ix anymore, so pop in advance
     lea     hl, ix + mul.size
     ld      sp, hl
