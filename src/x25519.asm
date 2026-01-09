@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 1052 bytes
+; Code size: 1055 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -78,7 +78,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       375,220,390 cc
+; Timing current:       375,214,146 cc
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -186,21 +186,18 @@ scalar.size := 6
     ld      bc, INT_SIZE
     ldir
 ; Inverse _c
-    ld      b, 254
+    ld      a, 254
+    ld      (ix + scalar.mainLoopIndex), a
 .inverseLoop:
-    dec     b
+    dec     (ix + scalar.mainLoopIndex)
     jr      z, .continue2
-    push    bc
     fmul _c, _c, _c
-    pop     bc
-    ld      a, b
+    ld      a, (ix + scalar.mainLoopIndex)
     cp      a, 2
     jr      z, .inverseLoop
     cp      a, 4
     jr      z, .inverseLoop
-    push    bc
     fmul _c, _c, _b
-    pop     bc
     jr      .inverseLoop
 .continue2:
 ; Final multiplication, putting the result in out
