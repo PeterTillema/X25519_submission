@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 166 bytes
-; Relocation size: 961 bytes
+; Code size: 151 bytes
+; Relocation size: 996 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       286,690,521 cc      ; Assuming yield_fn = NULL
+; Timing current:       279,084,122 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
@@ -166,8 +166,6 @@ tempVariables.size := 19
     ld      c, INT_SIZE
     ldir
     call    mainCalculationLoop
-; Final multiplication, putting the result in out
-    fmul (ix + sparg1 + tempVariables.size), _a, _c
     lea     hl, ix + tempVariables.size
     ld      sp, hl
     pop     ix
@@ -255,23 +253,72 @@ mainCalculationLoop:
 ; Inverse _c
     ld      (ix + scalar.mainLoopIndex), 254
 .inverseLoop:
-    dec     (ix + scalar.mainLoopIndex)
-    ret     z
     fmul _c, _c, _c
     ld      a, (ix + scalar.mainLoopIndex)
-    cp      a, 2
-    jr      z, .inverseLoop
-    cp      a, 4
-    jr      z, .inverseLoop
+    cp      a, 3
+    jr      z, .continue2
+    cp      a, 5
+    jr      z, .continue2
     fmul _c, _c, _b
-    jr      .inverseLoop
+.continue2:
+    dec     (ix + scalar.mainLoopIndex)
+    jr      nz, .inverseLoop
+; Final multiplication, putting the result in out
+    fmul (ix + sparg1 + tempVariables.size), _a, _c
+; Out is now in mod 2p, calculate the actual mod p by subtracting p and performing a swap if necessary
+    ld      hl, (ix + sparg1 + tempVariables.size)
+; Perform the pack to calculate mod p instead of mod 2p
+    ld      de, _product
+    push    de
+; Subtract p from _product (inline)
+    ld      a, (de)
+    sub     a, -P_OFFSET
+    ld      (de), a
+    dec     c               ; c = -1
+repeat INT_SIZE - 2
+    inc     de
+    ld      a, (de)
+    sbc     a, c
+    ld      (de), a
+end repeat
+    inc     de              ; Same as within the loop, but now 7F to not subtract the last bit
+    ld      a, (de)
+    sbc     a, 0x7F
+    ld      (de), a
+    ccf                     ; If the carry flag WAS set, out < p, so no swap needed. Flip the carry flag and call the swap
+    pop     de              ; de -> _product
+
+_swap:
+; Eventually swaps 2 big integers based on the carry flag. Performs the swap in constant time to prevent timing attacks
+; Inputs:
+;   DE = a
+;   HL = b
+;   cf = swap or not
+    sbc     a, a
+    ld      c, a            ; c = cf ? 0xFF : 0
+    ld      iyl, INT_SIZE
+.swapLoop:
+    ld      a, (de)         ; t = c & (a[i] ^ b[i])
+    xor     a, (hl)
+    and     a, c
+    ld      b, a
+    xor     a, (hl)         ; b[i] ^= t
+    ld      (hl), a
+    ld      a, (de)         ; a[i] ^= t
+    xor     a, b
+    ld      (de), a
+    inc     hl
+    inc     de
+    dec     iyl
+    jr      nz, .swapLoop
+    ret
 
 _jumpHL:
     jp      (hl)
 
 _fmul:
-; Performs a multiplication between two big integers, and returns the result in mod p.
-; It works because (a mod 2p) * (b mod 2p) = (a * b) mod 2p = (a * b) mod p. The pseudocode for multiplying looks like this:
+; Performs a multiplication between two big integers, and returns the result in mod 2p. The pseudocode for multiplying
+; looks like this:
 ;  - Reset first 32 bytes of product outcome to zeroes
 ;  - For each byte in input a, multiply the value with the entirety of b, and add to the product output at the correct offset.
 ;  - Now product is a 64-byte value, i.e.:
@@ -284,7 +331,6 @@ _fmul:
 ;  - The last byte from the intermediate result (the carry) will be propagated back, namely 38 * (value of last byte) will
 ;    be added to the first byte again. This can again trigger an overflow, so propagate the carry even further.
 ;  - The first 32 bytes of product now contains the output mod 2p, and will be copied to the out variable.
-;  - Either out or out - p is used.
 ; Inputs:
 ;   DE = out
 ;   BC = a mod 2p
@@ -402,61 +448,14 @@ end repeat
     ld      hl, _product
     ld      c, INT_SIZE
     ldir
-    ld      hl, -INT_SIZE
-    add     hl, de          ; hl -> (ix + mul.out)
-; Perform the pack to calculate mod p instead of mod 2p
-    ld      de, _product
-    push    de
-; Subtract p from _product (inline)
-    ld      a, (de)
-    sub     a, -P_OFFSET
-    ld      (de), a
-    dec     c               ; c = -1
-repeat INT_SIZE - 2
-    inc     de
-    ld      a, (de)
-    sbc     a, c
-    ld      (de), a
-end repeat
-    inc     de              ; Same as within the loop, but now 7F to not subtract the last bit
-    ld      a, (de)
-    sbc     a, 0x7F
-    ld      (de), a
-    ccf                     ; If the carry flag WAS set, out < p, so no swap needed. Flip the carry flag and call the swap
-    pop     de              ; de -> _product
-
-_swap:
-; Eventually swaps 2 big integers based on the carry flag. Performs the swap in constant time to prevent timing attacks
-; Inputs:
-;   DE = a
-;   HL = b
-;   cf = swap or not
-    sbc     a, a
-    ld      c, a            ; c = cf ? 0xFF : 0
-    ld      iyl, INT_SIZE
-.swapLoop:
-    ld      a, (de)         ; t = c & (a[i] ^ b[i])
-    xor     a, (hl)
-    and     a, c
-    ld      b, a
-    xor     a, (hl)         ; b[i] ^= t
-    ld      (hl), a
-    ld      a, (de)         ; a[i] ^= t
-    xor     a, b
-    ld      (de), a
-    inc     hl
-    inc     de
-    dec     iyl
-    jr      nz, .swapLoop
     ret
 
 _fadd:
-; Performs an addition between two big integers mod p, and returns the result without any mod. This is possible because
-; the output is used as an input for multiplication, which handles overflows itself.
+; Performs an addition between two big integers mod 2p, and returns the result in mod 2p again
 ; Inputs:
 ;   DE = out
-;   BC = a mod p
-;   HL = b mod p
+;   BC = a mod 2p
+;   HL = b mod 2p
     xor     a, a            ; Reset carry flag
     ld      iyl, INT_SIZE
 .addLoop:
@@ -468,14 +467,29 @@ _fadd:
     inc     bc
     dec     iyl
     jr      nz, .addLoop
+.normalize:
+    sbc     a, a
+    and     a, 38           ; a -> cf ? 38 : 0
+    ld      hl, -INT_SIZE
+    add     hl, de          ; hl -> out
+    add     a, (hl)
+    ld      (hl), a
+    inc     hl
+    ld      b, INT_SIZE - 1
+    ld      c, 0
+.subLoop:
+    ld      a, (hl)
+    adc     a, c
+    ld      (hl), a
+    inc     hl
+    djnz    .subLoop
     ret
 
 _faddInline:
-; Performs an inline addition between two big integers mod p, and returns the result in the first num without any mod.
-; This is possible because the output is used as an input for multiplication, which handles overflows itself.
+; Performs an inline addition between two big integers mod 2p, and returns the result in the first num with mod 2p.
 ; Inputs:
-;   DE = out, a mod p
-;   HL = b mod p
+;   DE = out, a mod 2p
+;   HL = b mod 2p
     xor     a, a            ; Reset carry flag
     ld      b, INT_SIZE
 .addLoop:
@@ -485,15 +499,14 @@ _faddInline:
     inc     hl
     inc     de
     djnz    .addLoop
-    ret
+    jr      _fadd.normalize
 
 _fsub:
-; Performs a subtraction between two big integers mod p, and returns the result in mod p again.
-; It works because (a mod p) - (b mod p) = (a - b) mod p.
+; Performs a subtraction between two big integers mod 2p, and returns the result in mod 2p again.
 ; Inputs:
 ;   DE = out
-;   BC = a mod p
-;   HL = b mod p
+;   BC = a mod 2p
+;   HL = b mod 2p
     xor     a, a            ; Reset carry flag
     ld      iyl, INT_SIZE
 .subtractLoop:
@@ -508,11 +521,10 @@ _fsub:
     jr      _fsubInline.normalize
 
 _fsubInline:
-; Performs an inline subtraction between two big integers mod p, and returns the result in the first num in mod p again.
-; It works because (a mod p) - (b mod p) = (a - b) mod p.
+; Performs an inline subtraction between two big integers mod 2p, and returns the result in the first num in mod 2p again.
 ; Inputs:
-;   DE = out, in1
-;   HL = b mod p
+;   DE = out, a mod 2p
+;   HL = b mod 2p
     xor     a, a            ; Reset carry flag
     ld      b, INT_SIZE
 .subtractLoop:
