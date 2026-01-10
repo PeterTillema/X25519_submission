@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 168 bytes
-; Relocation size: 984 bytes
+; Code size: 166 bytes
+; Relocation size: 989 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -38,11 +38,23 @@ macro fadd out, in1, in2
     call    _fadd
 end macro
 
+macro faddInline out, in2
+    ld      de, out
+    ld      hl, in2
+    call    _faddInline
+end macro
+
 macro fsub out, in1, in2
     ld      de, out
     ld      bc, in1
     ld      hl, in2
     call    _fsub
+end macro
+
+macro fsubInline out, in2
+    ld      de, out
+    ld      hl, in2
+    call    _fsubInline
 end macro
 
 arg1 := 3
@@ -86,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       289,848,621 cc      ; Assuming yield_fn = NULL
+; Timing current:       289,541,905 cc      ; Assuming yield_fn = NULL
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -193,19 +205,19 @@ mainCalculationLoop:
     swap _c, _d
 ; Do the main calculations!
     fadd _e, _a, _c
-    fsub _a, _a, _c
+    fsubInline _a, _c
     fadd _c, _b, _d
-    fsub _b, _b, _d
+    fsubInline _b, _d
     fmul _d, _e, _e
     fmul _f, _a, _a
     fmul _a, _c, _a
     fmul _c, _b, _e
     fadd _e, _a, _c
-    fsub _a, _a, _c
+    fsubInline _a, _c
     fmul _b, _a, _a
     fsub _c, _d, _f
     fmul _a, _c, _121665
-    fadd _a, _a, _d
+    faddInline _a, _d
     fmul _c, _c, _a
     fmul _a, _d, _f
     fmul _d, _b, (ix + sparg3 + scalar.size)
@@ -466,6 +478,23 @@ _fadd:
     jr      nz, .addLoop
     ret
 
+_faddInline:
+; Performs an inline addition between two big integers mod p, and returns the result in the first num without any mod.
+; This is possible because the output is used as an input for multiplication, which handles overflows itself.
+; Inputs:
+;   DE = out, a mod p
+;   HL = b mod p
+    xor     a, a            ; Reset carry flag
+    ld      b, INT_SIZE
+.addLoop:
+    ld      a, (de)         ; out[i] = a[i] + b[i] + carry
+    adc     a, (hl)
+    ld      (de), a
+    inc     hl
+    inc     de
+    djnz    .addLoop
+    ret
+
 _fsub:
 ; Performs a subtraction between two big integers mod p, and returns the result in mod p again.
 ; It works because (a mod p) - (b mod p) = (a - b) mod p.
@@ -484,8 +513,26 @@ _fsub:
     inc     bc
     dec     iyl
     jr      nz, .subtractLoop
+    jr      _fsubInline.normalize
+
+_fsubInline:
+; Performs an inline subtraction between two big integers mod p, and returns the result in the first num in mod p again.
+; It works because (a mod p) - (b mod p) = (a - b) mod p.
+; Inputs:
+;   DE = out, in1
+;   HL = b mod p
+    xor     a, a            ; Reset carry flag
+    ld      b, INT_SIZE
+.subtractLoop:
+    ld      a, (de)         ; out[i] = a[i] - b[i] - carry
+    sbc     a, (hl)
+    ld      (de), a
+    inc     hl
+    inc     de
+    djnz    .subtractLoop
 ; Now out is in the range (-2^255+19, 2^255-19). In order to do a mod p, we copy out to a temp variable, add p to
 ; that and eventually swap places (all in constant time), such that either out or (out + p) is used.
+.normalize:
     dec     de
     ex      de, hl          ; hl -> out + 31
     ld      de, _temp + INT_SIZE - 1
@@ -511,7 +558,7 @@ _fsub:
     adc     a, 0x7F
     ld      (hl), a
     pop     hl              ; hl -> temp
-    jq      _swap
+    jr      _swap
 
     private	reloc_rodata
 load reloc_rodata: $-$$ from $$
