@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 166 bytes
-; Relocation size: 989 bytes
+; Relocation size: 1002 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       289,541,905 cc      ; Assuming yield_fn = NULL
+; Timing current:       289,356,356 cc      ; Assuming yield_fn = NULL
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -533,32 +533,51 @@ _fsubInline:
 ; Now out is in the range (-2^255+19, 2^255-19). In order to do a mod p, we copy out to a temp variable, add p to
 ; that and eventually swap places (all in constant time), such that either out or (out + p) is used.
 .normalize:
-    dec     de
-    ex      de, hl          ; hl -> out + 31
-    ld      de, _temp + INT_SIZE - 1
-    ld      bc, INT_SIZE
-    lddr
-    ex      de, hl
-    inc     hl              ; hl -> temp
-    inc     de              ; de -> out
-    push    hl
-; Add p to temp (inline)
+    ld      hl, -INT_SIZE
+    add     hl, de          ; hl -> out
+    ld      de, _temp
+; Add p to out and store to temp
     ld      a, (hl)
     add     a, -P_OFFSET
-    ld      (hl), a
+    ld      (de), a
     ld      b, INT_SIZE - 2
 .addLoop:
     inc     hl
+    inc     de
     ld      a, (hl)
     adc     a, 0xFF
-    ld      (hl), a
+    ld      (de), a
     djnz    .addLoop
     inc     hl              ; Same as within the loop, but now 7F to not add the last bit
+    inc     de
     ld      a, (hl)
     adc     a, 0x7F
+    ld      (de), a
+
+_swapReverse:
+; Eventually swaps 2 big integers based on the carry flag. Performs the swap in constant time to prevent timing attacks
+; Inputs:
+;   DE = a + INT_SIZE - 1
+;   HL = b + INT_SIZE - 1
+;   cf = swap or not
+    sbc     a, a
+    ld      c, a            ; c = cf ? 0xFF : 0
+    ld      iyl, INT_SIZE
+.swapLoop:
+    ld      a, (de)         ; t = c & (a[i] ^ b[i])
+    xor     a, (hl)
+    and     a, c
+    ld      b, a
+    xor     a, (hl)         ; b[i] ^= t
     ld      (hl), a
-    pop     hl              ; hl -> temp
-    jr      _swap
+    ld      a, (de)         ; a[i] ^= t
+    xor     a, b
+    ld      (de), a
+    dec     hl
+    dec     de
+    dec     iyl
+    jr      nz, .swapLoop
+    ret
 
     private	reloc_rodata
 load reloc_rodata: $-$$ from $$
