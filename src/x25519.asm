@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 166 bytes
-; Relocation size: 1005 bytes
+; Relocation size: 988 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -98,16 +98,24 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       289,252,367 cc      ; Assuming yield_fn = NULL
+; Timing current:       289,041,453 cc      ; Assuming yield_fn = NULL
+tempVariables:
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
 scalar.clampedByte := 4                     ; The byte in the clamped array
 scalar.mainLoopIndex := 5                   ; Main loop index
-scalar.size := 6
+mul:
+mul.productOutputPointer := 6               ; A pointer to where the product output should be stored
+mul.outerLoopCount := 9                     ; Main count down
+mul.arg1 := 10
+mul.arg2 := 13
+mul.out := 16
+
+tempVariables.size := 19
 
     push    ix
-    ld      ix, -scalar.size
+    ld      ix, -tempVariables.size
     add     ix, sp
     ld      sp, ix
 ; Relocate code to be more performant
@@ -122,7 +130,7 @@ scalar.size := 6
     ld      (ix + scalar.mainLoopIndex), a
 ; Copy scalar to clamped, and edit byte 0 and byte 31
     ld      de, _clamped
-    ld      hl, (ix + sparg2 + scalar.size)
+    ld      hl, (ix + sparg2 + tempVariables.size)
     ld      a, (hl)
     and     a, 0xF8
     ld      (de), a
@@ -146,7 +154,7 @@ scalar.size := 6
     ld      c, INT_SIZE - 2 ; Clear _a
     ld      hl, _a + 1
     ldir
-    ld      hl, (ix + sparg3 + scalar.size)    ; Copy point to b
+    ld      hl, (ix + sparg3 + tempVariables.size)    ; Copy point to b
     ld      c, INT_SIZE
     ldir
     ld      (de), a         ; Clear c
@@ -159,8 +167,8 @@ scalar.size := 6
     ldir
     call    mainCalculationLoop
 ; Final multiplication, putting the result in out
-    fmul (ix + sparg1 + scalar.size), _a, _c
-    lea     hl, ix + scalar.size
+    fmul (ix + sparg1 + tempVariables.size), _a, _c
+    lea     hl, ix + tempVariables.size
     ld      sp, hl
     pop     ix
     ld      a, 1
@@ -178,12 +186,12 @@ mainCalculationLoop:
     cp      a, 55
     jr      nz, .noYieldFn
 .yieldFn:
-    ld      hl, (ix + scalar.size + sparg4)
+    ld      hl, (ix + tempVariables.size + sparg4)
     add     hl, de
     or      a, a
     sbc     hl, de
     jr      z, .noYieldFn
-    ld      de, (ix + scalar.size + sparg5)
+    ld      de, (ix + tempVariables.size + sparg5)
     push    de
     call    _jumpHL
     pop     de
@@ -220,7 +228,7 @@ mainCalculationLoop:
     faddInline _a, _d
     fmul _c, _c, _a
     fmul _a, _d, _f
-    fmul _d, _b, (ix + sparg3 + scalar.size)
+    fmul _d, _b, (ix + sparg3 + tempVariables.size)
     fmul _b, _e, _e
 ; Final swaps
     ld      a, (ix + scalar.clampedByte)
@@ -281,18 +289,7 @@ _fmul:
 ;   DE = out
 ;   BC = a mod 2p
 ;   HL = b mod 2p
-mul:
-mul.productOutputPointer := 0               ; A pointer to where the product output should be stored
-mul.outerLoopCount := 3                     ; Main count down
-mul.arg1 := 4
-mul.arg2 := 7
-mul.out := 10
-mul.size := 13
 
-    push    ix
-    ld      ix, -mul.size
-    add     ix, sp
-    ld      sp, ix
 ; Copy the input variables to the temporary storage
     ld      (ix + mul.arg1), bc
     ld      (ix + mul.arg2), hl
@@ -400,12 +397,8 @@ end repeat
     ld      a, (hl)
     adc     a, b
     ld      (hl), a
-    ld      de, (ix + mul.out)
-; We don't need ix anymore, so pop in advance
-    lea     hl, ix + mul.size
-    ld      sp, hl
-    pop     ix
 ; Copy product to out
+    ld      de, (ix + mul.out)
     ld      hl, _product
     ld      c, INT_SIZE
     ldir
