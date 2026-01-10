@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 166 bytes
-; Relocation size: 1003 bytes
+; Relocation size: 1005 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       289,270,683 cc      ; Assuming yield_fn = NULL
+; Timing current:       289,252,367 cc      ; Assuming yield_fn = NULL
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
 scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -400,36 +400,37 @@ end repeat
     ld      a, (hl)
     adc     a, b
     ld      (hl), a
-; Copy product to out
-    ld      de, (ix + mul.out)
-    ld      hl, _product
-    ld      c, INT_SIZE
-    ldir
     ld      de, (ix + mul.out)
 ; We don't need ix anymore, so pop in advance
     lea     hl, ix + mul.size
     ld      sp, hl
     pop     ix
-; Perform the pack to calculate mod p instead of mod 2p
+; Copy product to out
     ld      hl, _product
-    push    hl
-; Subtract p from temp (inline)
-    ld      a, (hl)
+    ld      c, INT_SIZE
+    ldir
+    ld      hl, -INT_SIZE
+    add     hl, de          ; hl -> (ix + mul.out)
+; Perform the pack to calculate mod p instead of mod 2p
+    ld      de, _product
+    push    de
+; Subtract p from _product (inline)
+    ld      a, (de)
     sub     a, -P_OFFSET
-    ld      (hl), a
+    ld      (de), a
     dec     c               ; c = -1
 repeat INT_SIZE - 2
-    inc     hl
-    ld      a, (hl)
+    inc     de
+    ld      a, (de)
     sbc     a, c
-    ld      (hl), a
+    ld      (de), a
 end repeat
-    inc     hl              ; Same as within the loop, but now 7F to not subtract the last bit
-    ld      a, (hl)
+    inc     de              ; Same as within the loop, but now 7F to not subtract the last bit
+    ld      a, (de)
     sbc     a, 0x7F
-    ld      (hl), a
+    ld      (de), a
     ccf                     ; If the carry flag WAS set, out < p, so no swap needed. Flip the carry flag and call the swap
-    pop     hl              ; hl -> temp
+    pop     de              ; de -> _product
 
 _swap:
 ; Eventually swaps 2 big integers based on the carry flag. Performs the swap in constant time to prevent timing attacks
