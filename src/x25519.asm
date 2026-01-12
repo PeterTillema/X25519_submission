@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 673 bytes
-; Relocation size: 866 bytes
+; Relocation size: 865 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       225,720,364 cc      ; Assuming yield_fn = NULL
+; Timing current:       225,711,186 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
@@ -412,28 +412,27 @@ end repeat
     ld      de, (hl)
     ex      de, hl
     add     hl, bc
-    ex      de, hl
-    ld      (iy), de
-    inc     hl
-    inc     hl
-    inc     hl
+    ld      (iy), hl
+    inc     de
+    inc     de
+    inc     de
     ld      bc, 0
 repeat (INT_SIZE - 3) / 3
     lea     iy, iy + 3
+    ex      de, hl
     ld      de, (hl)
     ex      de, hl
     adc     hl, bc
-    ex      de, hl
-    ld      (iy), de
-    inc     hl
-    inc     hl
-    inc     hl
+    ld      (iy), hl
+    inc     de
+    inc     de
+    inc     de
 end repeat
-    ld      a, (hl)
+    ld      a, (de)
     adc     a, b
     ld      (iy + 3), a
-    inc     hl
-    ld      a, (hl)
+    inc     de
+    ld      a, (de)
     adc     a, b
     ld      (iy + 4), a
     ret
