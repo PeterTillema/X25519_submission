@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 713 bytes
+; Code size: 709 bytes
 ; Relocation size: 981 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
@@ -98,18 +98,17 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       225,342,248 cc      ; Assuming yield_fn = NULL
+; Timing current:       225,341,438 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
-scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
-scalar.clampedMask := 3                     ; A mask to check the scalar byte against. Rotates after the loop
-scalar.clampedByte := 4                     ; The byte in the clamped array
-scalar.mainLoopIndex := 5                   ; Main loop index
+scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
+scalar.clampedByte := 1                     ; The byte in the clamped array
+scalar.mainLoopIndex := 2                   ; Main loop index
 mul:
-mul.outerLoopCount := 6                     ; Main count down
-mul.arg2 := 7
+mul.outerLoopCount := 3                     ; Main count down
+mul.arg2 := 4
 
-tempVariables.size := 10
+tempVariables.size := 7
 
     push    ix
     ld      ix, -tempVariables.size
@@ -136,7 +135,6 @@ tempVariables.size := 10
     ld      c, INT_SIZE - 1
     ldir
     dec     de              ; DE = _clamped + INT_SIZE - 1
-    ld      (ix + scalar.clampedPointer), de
     ld      a, (de)
     or      a, 0x40         ; and a, 0x7F is not necessary, as the last bit is not used at all
     ld      (de), a
@@ -162,6 +160,7 @@ tempVariables.size := 10
     ld      hl, _a          ; _d = _a
     ld      c, INT_SIZE
     ldir
+    ld      hl, _clamped + INT_SIZE - 1
     call    mainCalculationLoop
     lea     hl, ix + tempVariables.size
     ld      sp, hl
@@ -177,23 +176,26 @@ mainCalculationLoop:
     ld      a, (ix + scalar.mainLoopIndex)
     cp      a, 128
     jr      nz, .noYieldFn
+    push    hl
     ld      hl, (ix + tempVariables.size + sparg4)
     add     hl, de
     or      a, a
     sbc     hl, de
-    jr      z, .noYieldFn
+    jr      z, .skipYieldFn
     ld      de, (ix + tempVariables.size + sparg5)
     push    de
     call    _jumpHL
     pop     de
+.skipYieldFn:
+    pop     hl
 .noYieldFn:
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;;;;;;;;;;;;; /CHANGE THIS LOGIC TO FIT YOUR NEEDS ;;;;;;;;;;;;;;
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
     ; Get bit
-    ld      hl, (ix + scalar.clampedPointer)
-    ld      a, (hl)
+    ld      a, (hl)         ; hl -> clamped pointer
+    push    hl
     and     a, (ix + scalar.clampedMask)
     add     a, -1           ; Set -> cf is true; reset -> cf is false
     sbc     a, a
@@ -230,11 +232,10 @@ mainCalculationLoop:
     swap _c, _d
 
 ; Get to the next bit
+    pop     hl              ; hl -> clamped pointer
     rrc     (ix + scalar.clampedMask)
     jr      nc, .continue
-    ld      hl, (ix + scalar.clampedPointer)
     dec     hl
-    ld      (ix + scalar.clampedPointer), hl
 .continue:
     dec     (ix + scalar.mainLoopIndex)
     jq      nz, mainCalculationLoop
