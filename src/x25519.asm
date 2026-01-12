@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 683 bytes
-; Relocation size: 849 bytes
+; Code size: 713 bytes
+; Relocation size: 833 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -39,10 +39,10 @@ macro fmul out, in1, in2
 end macro
 
 macro fadd out, in1, in2
+    copy in1, out
     ld      de, out
-    ld      bc, in1
     ld      hl, in2
-    call    _fadd
+    call    _faddInline
 end macro
 
 macro faddInline out, in2
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       225,701,894 cc      ; Assuming yield_fn = NULL
+; Timing current:       225,678,832 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
@@ -438,24 +438,20 @@ end repeat
     ld      (iy + 4), a
     ret
 
-_fadd:
-; Performs an addition between two big integers mod 2p, and returns the result in mod 2p again
+_faddInline:
+; Performs an inline addition between two big integers mod 2p, and returns the result in the first num with mod 2p.
 ; Inputs:
-;   DE = out
-;   BC = a mod 2p
+;   DE = out, a mod 2p
 ;   HL = b mod 2p
     xor     a, a            ; Reset carry flag
-    ld      iyl, INT_SIZE
+    ld      b, INT_SIZE
 .addLoop:
-    ld      a, (bc)         ; out[i] = a[i] + b[i] + carry
+    ld      a, (de)         ; out[i] = a[i] + b[i] + carry
     adc     a, (hl)
     ld      (de), a
     inc     hl
     inc     de
-    inc     bc
-    dec     iyl
-    jr      nz, .addLoop
-.normalize:
+    djnz    .addLoop
     sbc     a, a
     and     a, 38           ; a -> cf ? 38 : 0
     ld      hl, -INT_SIZE
@@ -472,22 +468,6 @@ _fadd:
     inc     hl
     djnz    .subLoop
     ret
-
-_faddInline:
-; Performs an inline addition between two big integers mod 2p, and returns the result in the first num with mod 2p.
-; Inputs:
-;   DE = out, a mod 2p
-;   HL = b mod 2p
-    xor     a, a            ; Reset carry flag
-    ld      b, INT_SIZE
-.addLoop:
-    ld      a, (de)         ; out[i] = a[i] + b[i] + carry
-    adc     a, (hl)
-    ld      (de), a
-    inc     hl
-    inc     de
-    djnz    .addLoop
-    jr      _fadd.normalize
 
 _fsubInline:
 ; Performs an inline subtraction between two big integers mod 2p, and returns the result in the first num in mod 2p again.
