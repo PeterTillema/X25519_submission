@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 709 bytes
-; Relocation size: 981 bytes
+; Code size: 708 bytes
+; Relocation size: 984 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       225,341,438 cc      ; Assuming yield_fn = NULL
+; Timing current:       223,934,346 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -132,10 +132,9 @@ tempVariables.size := 7
     ld      (de), a
     inc     hl
     inc     de
-    ld      c, INT_SIZE - 1
+    ld      c, INT_SIZE - 2
     ldir
-    dec     de              ; DE = _clamped + INT_SIZE - 1
-    ld      a, (de)
+    ld      a, (hl)
     or      a, 0x40         ; and a, 0x7F is not necessary, as the last bit is not used at all
     ld      (de), a
     inc     de
@@ -286,7 +285,12 @@ mainCalculationLoop:
     pop     hl, de
     sbc     a, a
     ld      c, a
+    jp      _swap
 
+_jumpHL:
+    jp      (hl)
+
+virtual at ti.cursorImage
 _swap:
 ; Eventually swaps 2 big integers based on the carry flag. Performs the swap in constant time to prevent timing attacks
 ; Inputs:
@@ -310,10 +314,6 @@ _swap:
     jr      nz, .swapLoop
     ret
 
-_jumpHL:
-    jp      (hl)
-
-virtual at ti.cursorImage
 _fmul:
 ; Performs a multiplication between two big integers, and returns the result in mod 2p. The pseudocode for multiplying
 ; looks like this:
@@ -352,7 +352,7 @@ _fmul:
 .mainLoop:
     ld      a, (hl)          ; a[index]
     inc     hl
-    push    hl, de
+    push    hl
     ld      iyh, a
     ld      hl, (ix + mul.arg2)
     xor     a, a            ; Reset carry + carry flag
@@ -377,8 +377,10 @@ end repeat
     adc     a, 0
     ld      (de), a
 ; Continue with the main loop
-    pop     de, hl
-    inc     de
+    ld      hl, -INT_SIZE + 1
+    add     hl, de
+    ex      de, hl
+    pop     hl
     dec     (ix + mul.outerLoopCount)
     jp      nz, .mainLoop
 
