@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 151 bytes
-; Relocation size: 996 bytes
+; Relocation size: 979 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       279,084,122 cc      ; Assuming yield_fn = NULL
+; Timing current:       275,745,759 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
@@ -106,13 +106,10 @@ scalar.clampedMask := 3                     ; A mask to check the scalar byte ag
 scalar.clampedByte := 4                     ; The byte in the clamped array
 scalar.mainLoopIndex := 5                   ; Main loop index
 mul:
-mul.productOutputPointer := 6               ; A pointer to where the product output should be stored
-mul.outerLoopCount := 9                     ; Main count down
-mul.arg1 := 10
-mul.arg2 := 13
-mul.out := 16
+mul.outerLoopCount := 6                     ; Main count down
+mul.arg2 := 7
 
-tempVariables.size := 19
+tempVariables.size := 10
 
     push    ix
     ld      ix, -tempVariables.size
@@ -337,27 +334,26 @@ _fmul:
 ;   HL = b mod 2p
 
 ; Copy the input variables to the temporary storage
-    ld      (ix + mul.arg1), bc
     ld      (ix + mul.arg2), hl
-    ld      (ix + mul.out), de
+    push    de
+    push    bc
 ; Setup the product output
     ld      hl, _product
-    ld      (ix + mul.productOutputPointer), hl
     ld      bc, INT_SIZE - 1
     ld      (hl), b
     ld      de, _product + 1
     ldir
 ; Also setup the other variables
     ld      (ix + mul.outerLoopCount), INT_SIZE
-    ld      hl, (ix + mul.arg1)
+    pop     hl
+    ld      de, _product
 ; Within a loop, get a single byte from a, and multiply it with the entirety of b, adding it to the product immediately
 .mainLoop:
     ld      a, (hl)          ; a[index]
     inc     hl
-    push    hl
+    push    hl, de
     ld      iyh, a
     ld      iyl, INT_SIZE
-    ld      de, (ix + mul.productOutputPointer)
     ld      hl, (ix + mul.arg2)
     xor     a, a            ; Reset carry + carry flag
 .addMulSingleByteLoop:
@@ -382,16 +378,14 @@ _fmul:
     adc     a, 0
     ld      (de), a
 ; Continue with the main loop
-    ld      hl, (ix + mul.productOutputPointer)
-    inc     hl
-    ld      (ix + mul.productOutputPointer), hl
-    pop     hl
+    pop     de, hl
+    inc     de
     dec     (ix + mul.outerLoopCount)
     jr      nz, .mainLoop
 
 ; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and add to product directly
+    ex      de, hl
     ld      de, _product
-    ld      hl, _product + INT_SIZE
     xor     a, a                ; Reset carry for the next calculations
     ld      iyl, INT_SIZE
 .addMul38Loop:
@@ -444,7 +438,7 @@ end repeat
     adc     a, b
     ld      (hl), a
 ; Copy product to out
-    ld      de, (ix + mul.out)
+    pop     de
     ld      hl, _product
     ld      c, INT_SIZE
     ldir
