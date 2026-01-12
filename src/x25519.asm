@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 697 bytes
-; Relocation size: 1019 bytes
+; Code size: 692 bytes
+; Relocation size: 1018 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       222,656,915 cc      ; Assuming yield_fn = NULL
+; Timing current:       222,645,686 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -121,7 +121,7 @@ tempVariables.size := 6
 ; Setup some variables
     ld      a, 1 shl 6
     ld      (ix + scalar.clampedMask), a
-    sbc     a, a
+    sbc     a, a            ; a = -1
     ld      (ix + scalar.mainLoopIndex), a
 ; Copy scalar to clamped, and edit byte 0 and byte 31
     ld      de, _clamped
@@ -201,7 +201,6 @@ mainCalculationLoop:
     ld      c, a
 ; First swaps
     swap _a, _b
-    ld      c, (ix + scalar.clampedByte)
     swap _c, _d
 ; Do the main calculations!
     fadd _e, _a, _c
@@ -226,7 +225,6 @@ mainCalculationLoop:
 ; Final swaps
     ld      c, (ix + scalar.clampedByte)
     swap _a, _b
-    ld      c, (ix + scalar.clampedByte)
     swap _c, _d
 
 ; Get to the next bit
@@ -260,6 +258,7 @@ mainCalculationLoop:
 ; Out is now in the range [0, 2^256), which is slightly more than 2p. Subtract p and swap if necessary. Repeat this step
 ; to account for the possible output in the range of [2p, 2^256).
     call    .normalizeModP
+    ld      c, b            ; c = 0
 .normalizeModP:
     ld      hl, (ix + sparg1 + tempVariables.size)
 ; Perform the pack to calculate mod p instead of mod 2p
@@ -299,21 +298,25 @@ _swap:
 ;    C = swap ? 0xFF : 0
 ;   DE = a
 ;   HL = b
-    ld      iyl, INT_SIZE
+; Outputs:
+;    B = 0
+;    C = swap ? 0xFF : 0
+;   DE = a + INT_SIZE
+;   HL = b + INT_SIZE
+    ld      b, INT_SIZE
 .swapLoop:
     ld      a, (de)         ; t = c & (a[i] ^ b[i])
     xor     a, (hl)
     and     a, c
-    ld      b, a
+    ld      iyh, a
     xor     a, (hl)         ; b[i] ^= t
     ld      (hl), a
     ld      a, (de)         ; a[i] ^= t
-    xor     a, b
+    xor     a, iyh
     ld      (de), a
     inc     hl
     inc     de
-    dec     iyl
-    jr      nz, .swapLoop
+    djnz    .swapLoop
     ret
 
 _fmul:
@@ -335,6 +338,10 @@ _fmul:
 ;   DE = out
 ;   BC = a mod 2p
 ;   HL = b mod 2p
+; Outputs:
+;   BC = 0
+;   DE = _product + INT_SIZE - 1
+;   HL = ?
 
 ; Copy the input variables to the temporary storage
     ld      (ix + mul.arg2), hl
@@ -447,6 +454,9 @@ _faddInline:
 ; Inputs:
 ;   DE = out, a mod 2p
 ;   HL = b mod 2p
+; Outputs:
+;   DE = 0
+;   HL = ?
     xor     a, a            ; Reset carry flag
 repeat INT_SIZE
     ld      a, (de)         ; out[i] = a[i] + b[i] + carry
@@ -481,6 +491,11 @@ _fsubInline:
 ; Inputs:
 ;   DE = out, a mod 2p
 ;   HL = b mod 2p
+; Outputs:
+;    B = 0
+;    C = 0
+;   DE = out + INT_SIZE
+;   HL = out + INT_SIZE
     xor     a, a            ; Reset carry flag
     ld      b, INT_SIZE
 .subtractLoop:
@@ -492,7 +507,6 @@ _fsubInline:
     djnz    .subtractLoop
 ; Now out is in the range (-2^255+19, 2^255-19). If the carry flag is set, the value is "negative", but we can easily
 ; calculate a mod 2p by subtracting 38 from the entire value, such that the output is always [0, 2p).
-.normalize:
     sbc     a, a
     and     a, 38           ; a -> cf ? 38 : 0
     ld      hl, -INT_SIZE
