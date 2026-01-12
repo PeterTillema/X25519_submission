@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 151 bytes
-; Relocation size: 979 bytes
+; Relocation size: 975 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       275,745,759 cc      ; Assuming yield_fn = NULL
+; Timing current:       275,736,551 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
@@ -199,12 +199,13 @@ mainCalculationLoop:
     ld      hl, (ix + scalar.clampedPointer)
     ld      a, (hl)
     and     a, (ix + scalar.clampedMask)
-    ld      (ix + scalar.clampedByte), a
-; First swaps
     add     a, -1           ; Set -> cf is true; reset -> cf is false
+    sbc     a, a
+    ld      (ix + scalar.clampedByte), a
+    ld      c, a
+; First swaps
     swap _a, _b
-    ld      a, (ix + scalar.clampedByte)
-    add     a, -1
+    ld      c, (ix + scalar.clampedByte)
     swap _c, _d
 ; Do the main calculations!
     fadd _e, _a, _c
@@ -226,11 +227,9 @@ mainCalculationLoop:
     fmul _d, _b, (ix + sparg3 + tempVariables.size)
     fmul _b, _e, _e
 ; Final swaps
-    ld      a, (ix + scalar.clampedByte)
-    add     a, -1
+    ld      c, (ix + scalar.clampedByte)
     swap _a, _b
-    ld      a, (ix + scalar.clampedByte)
-    add     a, -1
+    ld      c, (ix + scalar.clampedByte)
     swap _c, _d
 
 ; Get to the next bit
@@ -284,15 +283,15 @@ end repeat
     ld      (de), a
     ccf                     ; If the carry flag WAS set, out < p, so no swap needed. Flip the carry flag and call the swap
     pop     de              ; de -> _product
+    sbc     a, a
+    ld      c, a
 
 _swap:
 ; Eventually swaps 2 big integers based on the carry flag. Performs the swap in constant time to prevent timing attacks
 ; Inputs:
+;    C = swap ? 0xFF : 0
 ;   DE = a
 ;   HL = b
-;   cf = swap or not
-    sbc     a, a
-    ld      c, a            ; c = cf ? 0xFF : 0
     ld      iyl, INT_SIZE
 .swapLoop:
     ld      a, (de)         ; t = c & (a[i] ^ b[i])
