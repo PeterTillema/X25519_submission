@@ -3,7 +3,7 @@ P_OFFSET = 19
 
 ; Code size: 151 bytes
 ; Relocation size: 897 bytes
-; Data size: 321 bytes
+; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
     assume adl=1
@@ -577,7 +577,6 @@ reloc.offset := reloc.base - reloc.data
     private _e
     private _f
     private _product
-    private _temp
 
 ; Used for scalar
 _clamped:
@@ -597,8 +596,6 @@ _f:
 ; Used for multiplication
 _product:
     rb      INT_SIZE * 2
-_temp:
-    rb      INT_SIZE + 1
 
 
 repeat 1, x:$-_clamped
