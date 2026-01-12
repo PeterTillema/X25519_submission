@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 151 bytes
-; Relocation size: 897 bytes
+; Code size: 673 bytes
+; Relocation size: 866 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       275,360,379 cc      ; Assuming yield_fn = NULL
+; Timing current:       225,720,364 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
@@ -169,7 +169,6 @@ tempVariables.size := 10
     ld      a, 1
     ret
 
-virtual at ti.cursorImage
 mainCalculationLoop:
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;;;;;;;;;;;;;; CHANGE THIS LOGIC TO FIT YOUR NEEDS ;;;;;;;;;;;;;;
@@ -312,6 +311,7 @@ _swap:
 _jumpHL:
     jp      (hl)
 
+virtual at ti.cursorImage
 _fmul:
 ; Performs a multiplication between two big integers, and returns the result in mod 2p. The pseudocode for multiplying
 ; looks like this:
@@ -352,10 +352,9 @@ _fmul:
     inc     hl
     push    hl, de
     ld      iyh, a
-    ld      iyl, INT_SIZE
     ld      hl, (ix + mul.arg2)
     xor     a, a            ; Reset carry + carry flag
-.addMulSingleByteLoop:
+repeat INT_SIZE
     ld      c, (hl)
     inc     hl
     ld      b, iyh
@@ -370,8 +369,7 @@ _fmul:
     ld      (de), a
     ld      a, b
     inc     de
-    dec     iyl
-    jr      nz, .addMulSingleByteLoop
+end repeat
 ; Add the last carry byte to the product. Since we work from low to high indexes, this last carry byte is guarenteed to
 ; not overlap with the previous product result, thus storing it directly works properly.
     adc     a, 0
@@ -380,7 +378,7 @@ _fmul:
     pop     de, hl
     inc     de
     dec     (ix + mul.outerLoopCount)
-    jr      nz, .mainLoop
+    jp      nz, .mainLoop
 
 ; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and add to product directly
     ex      de, hl
