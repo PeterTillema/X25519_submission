@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 151 bytes
-; Relocation size: 859 bytes
+; Relocation size: 897 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       275,732,950 cc      ; Assuming yield_fn = NULL
+; Timing current:       275,360,379 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
@@ -262,25 +262,27 @@ mainCalculationLoop:
     ld      hl, (ix + sparg1 + tempVariables.size)
 ; Perform the pack to calculate mod p instead of mod 2p
     ld      de, _product
-    push    de
-; Subtract p from _product (inline)
-    ld      a, (de)
+    push    de, hl
+; Subtract p from out and store to _product
+    ld      a, (hl)
     sub     a, -P_OFFSET
     ld      (de), a
     ld      b, INT_SIZE - 2
     dec     c               ; c = -1
 .subtractLoop:
     inc     de
-    ld      a, (de)
+    inc     hl
+    ld      a, (hl)
     sbc     a, c
     ld      (de), a
     djnz    .subtractLoop
     inc     de              ; Same as within the loop, but now 7F to not subtract the last bit
-    ld      a, (de)
+    inc     hl
+    ld      a, (hl)
     sbc     a, 0x7F
     ld      (de), a
     ccf                     ; If the carry flag WAS set, out < p, so no swap needed. Flip the carry flag and call the swap
-    pop     de              ; de -> _product
+    pop     hl, de
     sbc     a, a
     ld      c, a
 
@@ -402,43 +404,40 @@ _fmul:
     inc     de
     dec     iyl
     jr      nz, .addMul38Loop
-; Propagate the last carry byte back to the first falue
+; Propagate the last carry byte back to the first falue and store to out directly
     adc     a, 0
     ld      c, a
     ld      b, 38
     mlt     bc
     ld      hl, _product
+    pop     iy
     ld      de, (hl)
     ex      de, hl
     add     hl, bc
     ex      de, hl
-    ld      (hl), de
+    ld      (iy), de
     inc     hl
     inc     hl
     inc     hl
     ld      bc, 0
 repeat (INT_SIZE - 3) / 3
+    lea     iy, iy + 3
     ld      de, (hl)
     ex      de, hl
     adc     hl, bc
     ex      de, hl
-    ld      (hl), de
+    ld      (iy), de
     inc     hl
     inc     hl
     inc     hl
 end repeat
     ld      a, (hl)
     adc     a, b
-    ld      (hl), a
+    ld      (iy + 3), a
     inc     hl
     ld      a, (hl)
     adc     a, b
-    ld      (hl), a
-; Copy product to out
-    pop     de
-    ld      hl, _product
-    ld      c, INT_SIZE
-    ldir
+    ld      (iy + 4), a
     ret
 
 _fadd:
