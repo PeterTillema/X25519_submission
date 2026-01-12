@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 673 bytes
-; Relocation size: 865 bytes
+; Code size: 683 bytes
+; Relocation size: 849 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -18,6 +18,13 @@ end namespace
     public _tls_x25519_publickey
 
 ; Some macros to make code more clear
+macro copy source, out
+    ld      de, out
+    ld      hl, source
+    ld      bc, INT_SIZE
+    ldir
+end macro
+
 macro swap in1, in2
     ld      de, in1
     ld      hl, in2
@@ -42,13 +49,6 @@ macro faddInline out, in2
     ld      de, out
     ld      hl, in2
     call    _faddInline
-end macro
-
-macro fsub out, in1, in2
-    ld      de, out
-    ld      bc, in1
-    ld      hl, in2
-    call    _fsub
 end macro
 
 macro fsubInline out, in2
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       225,711,186 cc      ; Assuming yield_fn = NULL
+; Timing current:       225,701,894 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
@@ -215,7 +215,8 @@ mainCalculationLoop:
     fadd _e, _a, _c
     fsubInline _a, _c
     fmul _b, _a, _a
-    fsub _c, _d, _f
+    copy _d, _c
+    fsubInline _c, _f
     fmul _a, _c, _121665
     faddInline _a, _d
     fmul _c, _c, _a
@@ -487,25 +488,6 @@ _faddInline:
     inc     de
     djnz    .addLoop
     jr      _fadd.normalize
-
-_fsub:
-; Performs a subtraction between two big integers mod 2p, and returns the result in mod 2p again.
-; Inputs:
-;   DE = out
-;   BC = a mod 2p
-;   HL = b mod 2p
-    xor     a, a            ; Reset carry flag
-    ld      iyl, INT_SIZE
-.subtractLoop:
-    ld      a, (bc)         ; out[i] = a[i] - b[i] - carry
-    sbc     a, (hl)
-    ld      (de), a
-    inc     hl
-    inc     de
-    inc     bc
-    dec     iyl
-    jr      nz, .subtractLoop
-    jr      _fsubInline.normalize
 
 _fsubInline:
 ; Performs an inline subtraction between two big integers mod 2p, and returns the result in the first num in mod 2p again.
