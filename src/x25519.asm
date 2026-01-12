@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 708 bytes
-; Relocation size: 984 bytes
+; Code size: 697 bytes
+; Relocation size: 1003 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       223,934,346 cc      ; Assuming yield_fn = NULL
+; Timing current:       223,937,950 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -258,7 +258,10 @@ mainCalculationLoop:
     jr      nz, .inverseLoop
 ; Final multiplication, putting the result in out
     fmul (ix + sparg1 + tempVariables.size), _a, _c
-; Out is now in mod 2p, calculate the actual mod p by subtracting p and performing a swap if necessary
+; Out is now in the range [0, 2^256), which is slightly more than 2p. Subtract p and swap if necessary. Repeat this step
+; to account for the possible output in the range of [2p, 2^256).
+    call    .normalidModP
+.normalidModP:
     ld      hl, (ix + sparg1 + tempVariables.size)
 ; Perform the pack to calculate mod p instead of mod 2p
     ld      de, _product
