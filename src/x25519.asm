@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 692 bytes
-; Relocation size: 1018 bytes
+; Code size: 675 bytes
+; Relocation size: 1015 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       222,645,686 cc      ; Assuming yield_fn = NULL
+; Timing current:       222,622,944 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -119,10 +119,7 @@ tempVariables.size := 6
     ld      bc, reloc.data.len
     ldir
 ; Setup some variables
-    ld      a, 1 shl 6
-    ld      (ix + scalar.clampedMask), a
-    sbc     a, a            ; a = -1
-    ld      (ix + scalar.mainLoopIndex), a
+    ld      (ix + scalar.clampedMask), 1 shl 6
 ; Copy scalar to clamped, and edit byte 0 and byte 31
     ld      de, _clamped
     ld      hl, (ix + sparg2 + tempVariables.size)
@@ -159,6 +156,7 @@ tempVariables.size := 6
     ld      c, INT_SIZE
     ldir
     ld      hl, _clamped + INT_SIZE - 1
+    dec     a
     call    mainCalculationLoop
     lea     hl, ix + tempVariables.size
     ld      sp, hl
@@ -171,7 +169,7 @@ mainCalculationLoop:
     ;;;;;;;;;;;;;;; CHANGE THIS LOGIC TO FIT YOUR NEEDS ;;;;;;;;;;;;;;
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ; A loops back from 255 to 1, so the current logic calls the yield_fn function after 128 loops (every ~2.75 seconds)
-    ld      a, (ix + scalar.mainLoopIndex)
+    push    af
     cp      a, 128
     jr      nz, .noYieldFn
     push    hl
@@ -201,7 +199,8 @@ mainCalculationLoop:
     ld      c, a
 ; First swaps
     swap _a, _b
-    swap _c, _d
+    ld      de, _d          ; "swap _c, _d" but HL is already _c
+    call    _swap
 ; Do the main calculations!
     fadd _e, _a, _c
     fsubInline _a, _c
@@ -225,7 +224,8 @@ mainCalculationLoop:
 ; Final swaps
     ld      c, (ix + scalar.clampedByte)
     swap _a, _b
-    swap _c, _d
+    ld      de, _d          ; "swap _c, _d" but HL is already _c
+    call    _swap
 
 ; Get to the next bit
     pop     hl              ; hl -> clamped pointer
@@ -233,12 +233,13 @@ mainCalculationLoop:
     jr      nc, .continue
     dec     hl
 .continue:
-    dec     (ix + scalar.mainLoopIndex)
+    pop     af
+    dec     a
     jq      nz, mainCalculationLoop
 ; Copy _c to _b
     ld      de, _b
     ld      hl, _c
-    ld      bc, INT_SIZE
+    ld      c, INT_SIZE     ; BCU was still 0 from the last _fmul, and _swap sets B to 0
     ldir
 ; Inverse _c
     ld      (ix + scalar.mainLoopIndex), 254
@@ -399,7 +400,7 @@ end repeat
 .addMul38Loop:
     ld      c, (hl)
     inc     hl
-    ld      b, 38
+    ld      b, 2 * P_OFFSET
     mlt     bc
     adc     a, c
     ld      c, a            ; Temporarily save a
@@ -416,7 +417,7 @@ end repeat
 ; Propagate the last carry byte back to the first falue and store to out directly
     adc     a, 0
     ld      c, a
-    ld      b, 38
+    ld      b, 2 * P_OFFSET
     mlt     bc
     ld      hl, _product
     pop     iy
@@ -466,17 +467,16 @@ repeat INT_SIZE
     inc     de
 end repeat
     sbc     a, a
-    and     a, 1
+    and     a, 2 * P_OFFSET
+    sbc     hl, hl
+    ld      l, a            ; hl -> cf ? 38 : 0
     ld      iy, -INT_SIZE   ; iy -> out
     add     iy, de
-    ld      e, a
-    ld      d, 38
-    mlt     de              ; de -> cf ? 38 : 0
+    ex      de, hl
     ld      hl, (iy)
     add     hl, de
     ld      (iy), hl
-    ld      e, 0
-    ld      d, e
+    ld      e, d
     ld      b, (INT_SIZE - 3) / 3
 .addLoop:
     lea     iy, iy + 3
@@ -495,7 +495,7 @@ _fsubInline:
 ;    B = 0
 ;    C = 0
 ;   DE = out + INT_SIZE
-;   HL = out + INT_SIZE
+;   HL = out + INT_SIZE - 1
     xor     a, a            ; Reset carry flag
     ld      b, INT_SIZE
 .subtractLoop:
@@ -508,7 +508,7 @@ _fsubInline:
 ; Now out is in the range (-2^255+19, 2^255-19). If the carry flag is set, the value is "negative", but we can easily
 ; calculate a mod 2p by subtracting 38 from the entire value, such that the output is always [0, 2p).
     sbc     a, a
-    and     a, 38           ; a -> cf ? 38 : 0
+    and     a, 2 * P_OFFSET ; a -> cf ? 38 : 0
     ld      hl, -INT_SIZE
     add     hl, de          ; hl -> out
     ld      c, a
