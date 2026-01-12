@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 151 bytes
-; Relocation size: 863 bytes
+; Relocation size: 859 bytes
 ; Data size: 321 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       275,736,069 cc      ; Assuming yield_fn = NULL
+; Timing current:       275,732,950 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedPointer := 0                  ; A pointer to the current byte of scalar to check the bit against
@@ -174,13 +174,10 @@ mainCalculationLoop:
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;;;;;;;;;;;;;; CHANGE THIS LOGIC TO FIT YOUR NEEDS ;;;;;;;;;;;;;;
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ; A loops back from 255 to 1, so the current logic calls the yield_fn function every 100 loops (every ~3 seconds)
+    ; A loops back from 255 to 1, so the current logic calls the yield_fn function after 128 loops (every ~2.75 seconds)
     ld      a, (ix + scalar.mainLoopIndex)
-    cp      a, 155
-    jr      z, .yieldFn
-    cp      a, 55
+    cp      a, 128
     jr      nz, .noYieldFn
-.yieldFn:
     ld      hl, (ix + tempVariables.size + sparg4)
     add     hl, de
     or      a, a
