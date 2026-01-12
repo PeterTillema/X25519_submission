@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 697 bytes
-; Relocation size: 999 bytes
+; Relocation size: 1019 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       222,926,055 cc      ; Assuming yield_fn = NULL
+; Timing current:       222,656,915 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -456,19 +456,24 @@ repeat INT_SIZE
     inc     de
 end repeat
     sbc     a, a
-    and     a, 38           ; a -> cf ? 38 : 0
-    ld      hl, -INT_SIZE
-    add     hl, de          ; hl -> out
-    add     a, (hl)
-    ld      (hl), a
-    ld      c, 0
-    ld      b, INT_SIZE - 1
-.subLoop:
-    inc     hl
-    ld      a, (hl)
-    adc     a, c
-    ld      (hl), a
-    djnz    .subLoop
+    and     a, 1
+    ld      iy, -INT_SIZE   ; iy -> out
+    add     iy, de
+    ld      e, a
+    ld      d, 38
+    mlt     de              ; de -> cf ? 38 : 0
+    ld      hl, (iy)
+    add     hl, de
+    ld      (iy), hl
+    ld      e, 0
+    ld      d, e
+    ld      b, (INT_SIZE - 3) / 3
+.addLoop:
+    lea     iy, iy + 3
+    ld      hl, (iy)
+    adc     hl, de
+    ld      (iy), hl
+    djnz    .addLoop
     ret
 
 _fsubInline:
