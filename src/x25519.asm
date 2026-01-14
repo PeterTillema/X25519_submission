@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 675 bytes
-; Relocation size: 1024 bytes
+; Code size: 677 bytes
+; Relocation size: 1021 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       221,930,902 cc      ; Assuming yield_fn = NULL
+; Timing current:       221,000,742 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -239,7 +239,7 @@ mainCalculationLoop:
 ; Copy _c to _b
     ld      de, _b
     ld      hl, _c
-    ld      c, INT_SIZE     ; BCU was still 0 from the last _fmul, and _swap sets B to 0
+    ld      bc, INT_SIZE
     ldir
 ; Inverse _c
     ld      (ix + scalar.mainLoopIndex), 254
@@ -259,7 +259,6 @@ mainCalculationLoop:
 ; Out is now in the range [0, 2^256), which is slightly more than 2p. Subtract p and swap if necessary. Repeat this step
 ; to account for the possible output in the range of [2p, 2^256).
     call    .normalizeModP
-    ld      c, b            ; c = 0
 .normalizeModP:
     ld      hl, (ix + sparg1 + tempVariables.size)
 ; Perform the pack to calculate mod p instead of mod 2p
@@ -270,7 +269,7 @@ mainCalculationLoop:
     sub     a, -P_OFFSET
     ld      (de), a
     ld      b, INT_SIZE - 2
-    dec     c               ; c = -1
+    ld      c, -1
 .subtractLoop:
     inc     de
     inc     hl
@@ -300,36 +299,27 @@ _swap:
 ;   DE = a
 ;   HL = b
 ; Outputs:
-;    B = 0
+;    B = ?
 ;    C = swap ? 0xFF : 0
 ;   DE = a + INT_SIZE
 ;   HL = b + INT_SIZE
-    ld      b, INT_SIZE / 2
+    ld      iyh, INT_SIZE / 4
 .swapLoop:
+repeat 4
     ld      a, (de)         ; t = c & (a[i] ^ b[i])
     xor     a, (hl)
     and     a, c
-    ld      iyh, a
+    ld      b, a
     xor     a, (hl)         ; b[i] ^= t
     ld      (hl), a
     ld      a, (de)         ; a[i] ^= t
-    xor     a, iyh
+    xor     a, b
     ld      (de), a
     inc     hl
     inc     de
-; Swap twice, and only loop 16 times instead of 32 times
-    ld      a, (de)         ; t = c & (a[i] ^ b[i])
-    xor     a, (hl)
-    and     a, c
-    ld      iyh, a
-    xor     a, (hl)         ; b[i] ^= t
-    ld      (hl), a
-    ld      a, (de)         ; a[i] ^= t
-    xor     a, iyh
-    ld      (de), a
-    inc     hl
-    inc     de
-    djnz    .swapLoop
+end repeat
+    dec     iyh
+    jr      nz, .swapLoop
     ret
 
 _fmul:
@@ -408,8 +398,9 @@ end repeat
 ; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and add to product + 32 directly
     ld      de, _product    ; hl -> _product + INT_SIZE
     xor     a, a            ; Reset carry for the next calculations
-    ld      iyl, INT_SIZE / 2
+    ld      iyl, INT_SIZE / 8
 .addMul38Loop:
+repeat 8
     ld      c, (hl)
     ld      b, 2 * P_OFFSET
     mlt     bc
@@ -424,23 +415,9 @@ end repeat
     inc     hl
     inc     de
     ld      a, b
-; Perform the calculation twice and only loop 16 times instead of 32 times
-    ld      c, (hl)
-    ld      b, 2 * P_OFFSET
-    mlt     bc
-    adc     a, c
-    ld      c, a            ; Temporarily save a
-    adc     a, b            ; b + cf -> b
-    sub     a, c
-    ld      b, a
-    ld      a, (de)         ; Restore a and add (de) to (hl)
-    add     a, c
-    ld      (hl), a
-    inc     hl
-    inc     de
-    ld      a, b
+end repeat
     dec     iyl
-    jr      nz, .addMul38Loop
+    jp      nz, .addMul38Loop
 ; Propagate the last carry byte back to the first falue and store to out directly
     adc     a, 0
     ld      c, a
@@ -486,27 +463,30 @@ _faddInline:
 ;   DE = 0
 ;   HL = ?
     xor     a, a            ; Reset carry flag
-repeat INT_SIZE
+    ld      b, INT_SIZE / 4
+.addLoop1:
+repeat 4
     ld      a, (de)         ; out[i] = a[i] + b[i] + carry
     adc     a, (hl)
     ld      (de), a
     inc     hl
     inc     de
 end repeat
+    djnz    .addLoop1
     sbc     a, a
     and     a, 2 * P_OFFSET ; a -> cf ? 38 : 0
     ld      hl, -INT_SIZE
     add     hl, de          ; hl -> out
     add     a, (hl)
     ld      (hl), a
-    ld      c, 0
+    ld      c, b
     ld      b, INT_SIZE - 1
-.subLoop:
+.addLoop2:
     inc     hl
     ld      a, (hl)
     adc     a, c
     ld      (hl), a
-    djnz    .subLoop
+    djnz    .addLoop2
     ret
 
 _fsubInline:
@@ -520,14 +500,16 @@ _fsubInline:
 ;   DE = out + INT_SIZE
 ;   HL = out + INT_SIZE - 1
     xor     a, a            ; Reset carry flag
-    ld      b, INT_SIZE
-.subtractLoop:
+    ld      b, INT_SIZE / 4
+.subLoop1:
+repeat 4
     ld      a, (de)         ; out[i] = a[i] - b[i] - carry
     sbc     a, (hl)
     ld      (de), a
     inc     hl
     inc     de
-    djnz    .subtractLoop
+end repeat
+    djnz    .subLoop1
 ; Now out is in the range (-2^255+19, 2^255-19). If the carry flag is set, the value is "negative", but we can easily
 ; calculate a mod 2p by subtracting 38 from the entire value, such that the output is always [0, 2p).
     sbc     a, a
@@ -540,12 +522,12 @@ _fsubInline:
     ld      (hl), a
     ld      c, b
     ld      b, INT_SIZE - 1
-.subLoop:
+.subLoop2:
     inc     hl
     ld      a, (hl)
     sbc     a, c
     ld      (hl), a
-    djnz    .subLoop
+    djnz    .subLoop2
     ret
 
     private	reloc_rodata
