@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 675 bytes
-; Relocation size: 995 bytes
+; Relocation size: 1024 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       222,877,831 cc      ; Assuming yield_fn = NULL
+; Timing current:       221,930,902 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -304,8 +304,20 @@ _swap:
 ;    C = swap ? 0xFF : 0
 ;   DE = a + INT_SIZE
 ;   HL = b + INT_SIZE
-    ld      b, INT_SIZE
+    ld      b, INT_SIZE / 2
 .swapLoop:
+    ld      a, (de)         ; t = c & (a[i] ^ b[i])
+    xor     a, (hl)
+    and     a, c
+    ld      iyh, a
+    xor     a, (hl)         ; b[i] ^= t
+    ld      (hl), a
+    ld      a, (de)         ; a[i] ^= t
+    xor     a, iyh
+    ld      (de), a
+    inc     hl
+    inc     de
+; Swap twice, and only loop 16 times instead of 32 times
     ld      a, (de)         ; t = c & (a[i] ^ b[i])
     xor     a, (hl)
     and     a, c
@@ -396,8 +408,23 @@ end repeat
 ; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and add to product + 32 directly
     ld      de, _product    ; hl -> _product + INT_SIZE
     xor     a, a            ; Reset carry for the next calculations
-    ld      iyl, INT_SIZE
+    ld      iyl, INT_SIZE / 2
 .addMul38Loop:
+    ld      c, (hl)
+    ld      b, 2 * P_OFFSET
+    mlt     bc
+    adc     a, c
+    ld      c, a            ; Temporarily save a
+    adc     a, b            ; b + cf -> b
+    sub     a, c
+    ld      b, a
+    ld      a, (de)         ; Restore a and add (de) to (hl)
+    add     a, c
+    ld      (hl), a
+    inc     hl
+    inc     de
+    ld      a, b
+; Perform the calculation twice and only loop 16 times instead of 32 times
     ld      c, (hl)
     ld      b, 2 * P_OFFSET
     mlt     bc
