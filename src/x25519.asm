@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 677 bytes
-; Relocation size: 1021 bytes
+; Relocation size: 1020 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       221,000,519 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,991,341 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -422,35 +422,23 @@ end repeat
     ld      c, a
     ld      b, 2 * P_OFFSET
     mlt     bc
-    ex      de, hl          ; hl -> _product + INT_SIZE
-    pop     iy
-    ld      de, (hl)
-    ex      de, hl
-    add     hl, bc
-    ld      (iy), hl
+    pop     hl              ; hl -> out, de -> _product + INT_SIZE
+    ld      a, (de)
+    add     a, c
+    ld      (hl), a
+    inc     hl
     inc     de
+    ld      a, (de)
+    adc     a, b
+    ld      (hl), a
+    ld      c, 0
+repeat INT_SIZE - 2
+    inc     hl
     inc     de
-    inc     de
-    ld      b, 0
-    ld      c, b
-repeat (INT_SIZE - 3) / 3
-    lea     iy, iy + 3
-    ex      de, hl
-    ld      de, (hl)
-    ex      de, hl
-    adc     hl, bc
-    ld      (iy), hl
-    inc     de
-    inc     de
-    inc     de
+    ld      a, (de)
+    adc     a, c
+    ld      (hl), a
 end repeat
-    ld      a, (de)
-    adc     a, b
-    ld      (iy + 3), a
-    inc     de
-    ld      a, (de)
-    adc     a, b
-    ld      (iy + 4), a
     ret
 
 _faddInline:
