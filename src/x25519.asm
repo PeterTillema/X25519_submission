@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 677 bytes
-; Relocation size: 1020 bytes
+; Code size: 690 bytes
+; Relocation size: 1021 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -33,7 +33,7 @@ end macro
 
 macro fmul out, in1, in2
     ld      de, out
-    ld      bc, in1
+    ld      iy, in1
     ld      hl, in2
     call    _fmul
 end macro
@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,991,341 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,957,721 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -298,6 +298,7 @@ _swap:
 ;   DE = a
 ;   HL = b
 ; Outputs:
+;  BCU = ?
 ;    B = ?
 ;    C = swap ? 0xFF : 0
 ;   DE = a + INT_SIZE
@@ -338,16 +339,18 @@ _fmul:
 ;  - The first 32 bytes of product now contains the output mod 2p, and will be copied to the out variable.
 ; Inputs:
 ;   DE = out
-;   BC = a mod 2p
+;   IY = a mod 2p
 ;   HL = b mod 2p
 ; Outputs:
-;   BC = 0
+;  BCU = 0
+;    B = ?
+;    C = 0
 ;   DE = _product + INT_SIZE - 1
 ;   HL = ?
 
 ; Copy the input variables to the temporary storage
     ld      (ix + mul.arg2), hl
-    push    de, bc
+    push    de
 ; Setup the product output
     ld      hl, _product
     ld      bc, INT_SIZE - 1
@@ -355,8 +358,8 @@ _fmul:
     ld      de, _product + 1
     ldir
 ; Also setup the other variables
+    lea     de, iy
     ld      iyl, INT_SIZE
-    pop     de
     ld      hl, _product
 ; Within a loop, get a single byte from a, and multiply it with the entirety of b, adding it to the product immediately
 .mainLoop:
@@ -447,6 +450,9 @@ _faddInline:
 ;   DE = out, a mod 2p
 ;   HL = b mod 2p
 ; Outputs:
+;  BCU = ?
+;    B = 0
+;    C = 0
 ;   DE = 0
 ;   HL = ?
     xor     a, a            ; Reset carry flag
@@ -482,6 +488,7 @@ _fsubInline:
 ;   DE = out, a mod 2p
 ;   HL = b mod 2p
 ; Outputs:
+;  BCU = ?
 ;    B = 0
 ;    C = 0
 ;   DE = out + INT_SIZE
