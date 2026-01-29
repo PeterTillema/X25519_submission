@@ -98,7 +98,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       221,000,742 cc      ; Assuming yield_fn = NULL
+; Timing current:       221,000,519 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -228,11 +228,10 @@ mainCalculationLoop:
     call    _swap
 
 ; Get to the next bit
-    pop     hl              ; hl -> clamped pointer
+    pop     de              ; de -> clamped pointer
     rrc     (ix + scalar.clampedMask)
-    jr      nc, .continue
-    dec     hl
-.continue:
+    sbc     hl, hl
+    add     hl, de          ; hl -> clamped pointer, decremented if the carry flag was set
     pop     af
     dec     a
     jq      nz, mainCalculationLoop
