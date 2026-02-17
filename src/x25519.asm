@@ -399,7 +399,7 @@ repeat INT_SIZE
     ld      a, b
     inc     de
 end repeat
-; Add the last carry byte to the product. Since we work from low to high indexes, this last carry byte is guarenteed to
+; Add the last carry byte to the product. Since we work from low to high indexes, this last carry byte is guaranteed to
 ; not overlap with the previous product result, thus storing it directly works properly.
     adc     a, 0
     ld      (de), a
@@ -433,7 +433,7 @@ repeat 8
 end repeat
     dec     iyl
     jp      nz, .addMul38Loop
-; Propagate the last carry byte back to the first falue and store to out directly
+; Propagate the last carry byte back to the first value and store to out directly
     adc     a, 0
     ld      c, a
     ld      b, 2 * P_OFFSET
