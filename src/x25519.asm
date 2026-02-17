@@ -45,16 +45,29 @@ macro fadd out, in1, in2
     call    _faddInline
 end macro
 
-macro faddInline out, in2
+macro faddNoCarry out, in1, in2
+    copy in1, out
     ld      de, out
     ld      hl, in2
-    call    _faddInline
+    call    _faddInline + 1
+end macro
+
+macro faddInlineNoCarry out, in2
+    ld      de, out
+    ld      hl, in2
+    call    _faddInline + 1
 end macro
 
 macro fsubInline out, in2
     ld      de, out
     ld      hl, in2
     call    _fsubInline
+end macro
+
+macro fsubInlineNoCarry out, in2
+    ld      de, out
+    ld      hl, in2
+    call    _fsubInline + 1
 end macro
 
 arg1 := 3
@@ -98,7 +111,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,957,721 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,955,426 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -210,13 +223,13 @@ mainCalculationLoop:
     fmul _f, _a, _a
     fmul _a, _c, _a
     fmul _c, _b, _e
-    fadd _e, _a, _c
+    faddNoCarry _e, _a, _c
     fsubInline _a, _c
     fmul _b, _a, _a
     copy _d, _c
-    fsubInline _c, _f
+    fsubInlineNoCarry _c, _f
     fmul _a, _c, _121665
-    faddInline _a, _d
+    faddInlineNoCarry _a, _d
     fmul _c, _c, _a
     fmul _a, _d, _f
     fmul _d, _b, (ix + sparg3 + tempVariables.size)
