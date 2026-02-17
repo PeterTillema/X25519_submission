@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 690 bytes
+; Code size: 685 bytes
 ; Relocation size: 1021 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
@@ -36,6 +36,13 @@ macro fmul out, in1, in2
     ld      iy, in1
     ld      hl, in2
     call    _fmul
+end macro
+
+macro fsquare out, in
+    ld      de, out
+    ld      iy, in
+    ld      (ix + mul.arg2), iy
+    call    _fmul.start
 end macro
 
 macro fadd out, in1, in2
@@ -111,7 +118,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,955,426 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,938,864 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -219,13 +226,13 @@ mainCalculationLoop:
     fsubInline _a, _c
     fadd _c, _b, _d
     fsubInline _b, _d
-    fmul _d, _e, _e
-    fmul _f, _a, _a
+    fsquare _d, _e
+    fsquare _f, _a
     fmul _a, _c, _a
     fmul _c, _b, _e
     faddNoCarry _e, _a, _c
     fsubInline _a, _c
-    fmul _b, _a, _a
+    fsquare _b, _a
     copy _d, _c
     fsubInlineNoCarry _c, _f
     fmul _a, _c, _121665
@@ -233,7 +240,7 @@ mainCalculationLoop:
     fmul _c, _c, _a
     fmul _a, _d, _f
     fmul _d, _b, (ix + sparg3 + tempVariables.size)
-    fmul _b, _e, _e
+    fsquare _b, _e
 ; Final swaps
     ld      c, (ix + scalar.clampedByte)
     swap _a, _b
@@ -256,7 +263,7 @@ mainCalculationLoop:
 ; Inverse _c
     ld      (ix + scalar.mainLoopIndex), 254
 .inverseLoop:
-    fmul _c, _c, _c
+    fsquare _c, _c
     ld      a, (ix + scalar.mainLoopIndex)
     cp      a, 3
     jr      z, .continue2
@@ -363,6 +370,7 @@ _fmul:
 
 ; Copy the input variables to the temporary storage
     ld      (ix + mul.arg2), hl
+.start:
     push    de
 ; Setup the product output
     ld      hl, _product
