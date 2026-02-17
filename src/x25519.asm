@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 685 bytes
+; Code size: 682 bytes
 ; Relocation size: 1021 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
@@ -118,7 +118,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,938,864 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,934,533 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -152,6 +152,7 @@ tempVariables.size := 6
     ldir
     ld      a, (hl)
     or      a, 0x40         ; and a, 0x7F is not necessary, as the last bit is not used at all
+    add     a, a            ; Bit 7 is not used, so shift in advance
     ld      (de), a
     inc     de
 ; Fill _a to _d
@@ -210,10 +211,8 @@ mainCalculationLoop:
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
     ; Get bit
-    ld      a, (hl)         ; hl -> clamped pointer
+    rlc     (hl)         ; hl -> clamped pointer
     push    hl
-    and     a, (ix + scalar.clampedMask)
-    add     a, -1           ; Set -> cf is true; reset -> cf is false
     sbc     a, a
     ld      (ix + scalar.clampedByte), a
     ld      c, a
