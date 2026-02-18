@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 665 bytes
+; Code size: 664 bytes
 ; Relocation size: 1018 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
@@ -119,7 +119,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,904,393 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,903,308 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -187,7 +187,7 @@ mainCalculationLoop:
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ; A loops back from 255 to 1, so the current logic calls the yield_fn function after 128 loops (every ~2.75 seconds)
     push    af
-    cp      a, 128
+    add     a, a
     jr      nz, .noYieldFn
     push    hl
     ld      hl, (ix + tempVariables.size + sparg4)
