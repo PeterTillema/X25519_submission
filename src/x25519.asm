@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 664 bytes
+; Code size: 659 bytes
 ; Relocation size: 1018 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
@@ -119,16 +119,15 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,903,308 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,900,550 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
-scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
-scalar.clampedByte := 1                     ; The byte in the clamped array
-scalar.mainLoopIndex := 2                   ; Main loop index
+scalar.clampedByte := 0                     ; The byte in the clamped array
+scalar.mainLoopIndex := 1                   ; Main loop index
 mul:
-mul.arg2 := 3
+mul.arg2 := 2
 
-tempVariables.size := 6
+tempVariables.size := 5
 
     push    ix
     ld      ix, -tempVariables.size
@@ -139,8 +138,6 @@ tempVariables.size := 6
     ld      de, ti.cursorImage
     ld      bc, reloc.data.len
     ldir
-; Setup some variables
-    ld      (ix + scalar.clampedMask), 1 shl 6
 ; Copy scalar to clamped, and edit byte 0 and byte 31
     ld      de, _clamped
     ld      hl, (ix + sparg2 + tempVariables.size)
@@ -173,7 +170,8 @@ tempVariables.size := 6
     ld      c, INT_SIZE
     ldir
     ld      hl, _clamped + INT_SIZE - 1
-    dec     a
+    dec     b               ; b = loop index
+    ld      c, 1 shl 6      ; c = bit mask
     call    mainCalculationLoop
     lea     hl, ix + tempVariables.size
     ld      sp, hl
@@ -186,8 +184,8 @@ mainCalculationLoop:
     ;;;;;;;;;;;;;;; CHANGE THIS LOGIC TO FIT YOUR NEEDS ;;;;;;;;;;;;;;
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ; A loops back from 255 to 1, so the current logic calls the yield_fn function after 128 loops (every ~2.75 seconds)
-    push    af
-    add     a, a
+    push    bc
+    sla     b
     jr      nz, .noYieldFn
     push    hl
     ld      hl, (ix + tempVariables.size + sparg4)
@@ -240,16 +238,16 @@ mainCalculationLoop:
 
 ; Get to the next bit
     pop     de              ; de -> clamped pointer
-    rrc     (ix + scalar.clampedMask)
+    pop     bc              ; b -> loop index, c -> mask
+    rrc     c               ; loop through the bit mask
     sbc     hl, hl
     add     hl, de          ; hl -> clamped pointer, decremented if the carry flag was set
-    pop     af
-    dec     a
+    dec     b
     jq      nz, mainCalculationLoop
 ; Copy _c to _b
     ld      de, _b
     ld      hl, _c
-    ld      bc, INT_SIZE
+    ld      c, INT_SIZE
     ldir
 ; Inverse _c
     ld      (ix + scalar.mainLoopIndex), 254
