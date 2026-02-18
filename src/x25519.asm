@@ -309,7 +309,7 @@ _swap:
 ;    C = swap ? 0xFF : 0
 ;   DE = a
 ;   HL = b
-;  IYH = loop count / 4 (normally 32/8)
+;  IYH = loop count / 4
 ; Outputs:
 ;  BCU = ?
 ;    B = ?
