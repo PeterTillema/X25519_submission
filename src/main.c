@@ -109,8 +109,6 @@ static bool test_vector_3(void) {
     if (!tls_x25519_publickey(public_key, alice_private, NULL, NULL))
         return false;
 
-    dbg_Debugger();
-
     return memcmp(public_key, expected, 32) == 0;
 }
 
