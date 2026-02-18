@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 659 bytes
-; Relocation size: 1018 bytes
+; Relocation size: 1022 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -119,7 +119,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,900,550 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,890,378 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedByte := 0                     ; The byte in the clamped array
@@ -484,13 +484,17 @@ end repeat
     add     a, (hl)
     ld      (hl), a
     ld      c, b
-    ld      b, INT_SIZE - 1
+    ld      b, INT_SIZE - 2
 .addLoop2:
     inc     hl
     ld      a, (hl)
     adc     a, c
     ld      (hl), a
     djnz    .addLoop2
+    inc     hl
+    ld      a, (hl)
+    adc     a, c
+    ld      (hl), a
     ret
 
 _fsubInline:
