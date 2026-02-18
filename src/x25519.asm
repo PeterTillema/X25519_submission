@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 682 bytes
-; Relocation size: 1021 bytes
+; Code size: 665 bytes
+; Relocation size: 1018 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -28,6 +28,7 @@ end macro
 macro swap in1, in2
     ld      de, in1
     ld      hl, in2
+    ld      iyh, INT_SIZE / 4 * 2
     call    _swap
 end macro
 
@@ -118,7 +119,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,934,533 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,904,393 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedMask := 0                     ; A mask to check the scalar byte against. Rotates after the loop
@@ -162,16 +163,11 @@ tempVariables.size := 6
     dec     a
     ld      (de), a
     inc     de              ; DE = _a + 2
-    ld      c, INT_SIZE - 2 ; Clear _a
+    ld      c, INT_SIZE * 2 - 2 ; Clear _a and _c
     ld      hl, _a + 1
     ldir
     ld      hl, (ix + sparg3 + tempVariables.size)    ; Copy point to b
     ld      c, INT_SIZE
-    ldir
-    ld      (de), a         ; Clear c
-    inc     de
-    ld      hl, _c
-    ld      c, INT_SIZE - 1
     ldir
     ld      hl, _a          ; _d = _a
     ld      c, INT_SIZE
@@ -218,8 +214,6 @@ mainCalculationLoop:
     ld      c, a
 ; First swaps
     swap _a, _b
-    ld      de, _d          ; "swap _c, _d" but HL is already _c
-    call    _swap
 ; Do the main calculations!
     fadd _e, _a, _c
     fsubInline _a, _c
@@ -243,8 +237,6 @@ mainCalculationLoop:
 ; Final swaps
     ld      c, (ix + scalar.clampedByte)
     swap _a, _b
-    ld      de, _d          ; "swap _c, _d" but HL is already _c
-    call    _swap
 
 ; Get to the next bit
     pop     de              ; de -> clamped pointer
@@ -304,6 +296,7 @@ mainCalculationLoop:
     pop     hl, de
     sbc     a, a
     ld      c, a
+    ld      iyh, INT_SIZE / 4
     jp      _swap
 
 _jumpHL:
@@ -316,13 +309,13 @@ _swap:
 ;    C = swap ? 0xFF : 0
 ;   DE = a
 ;   HL = b
+;  IYH = loop count / 4 (normally 32/8)
 ; Outputs:
 ;  BCU = ?
 ;    B = ?
 ;    C = swap ? 0xFF : 0
 ;   DE = a + INT_SIZE
 ;   HL = b + INT_SIZE
-    ld      iyh, INT_SIZE / 4
 .swapLoop:
 repeat 4
     ld      a, (de)         ; t = c & (a[i] ^ b[i])
@@ -581,9 +574,9 @@ _clamped:
     rb      INT_SIZE
 _a:
     rb      INT_SIZE
-_b:
-    rb      INT_SIZE
 _c:
+    rb      INT_SIZE
+_b:
     rb      INT_SIZE
 _d:
     rb      INT_SIZE
