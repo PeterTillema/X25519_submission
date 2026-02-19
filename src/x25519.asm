@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 660 bytes
+; Code size: 658 bytes
 ; Relocation size: 1021 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
@@ -119,7 +119,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,882,172 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,880,132 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -211,7 +211,6 @@ mainCalculationLoop:
     push    bc
 ; First swaps
     swap _a, _b
-    ld      c, 0
 ; Do the main calculations!
     fadd _e, _a, _c
     fsubInline _a, _c
