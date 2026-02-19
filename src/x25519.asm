@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 628 bytes
+; Code size: 602 bytes
 ; Relocation size: 1024 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,687,406 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,660,886 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -158,28 +158,23 @@ mainCalculationLoop:
     ld      hl, _a
     ld      bc, INT_SIZE
     ldir
-    ld      de, _e
-    ld      hl, _c
+    ld      de, _e      ; hl -> _c
     call    _faddInline
 ; fsub _a, _a, _c
     ld      de, _a
     ld      hl, _c
     call    _fsubInline
 ; fadd _c, _b, _d
-    ld      de, _c
-    ld      hl, _b
+    ld      hl, _b      ; de -> _c
     ld      c, INT_SIZE
     ldir
-    ld      de, _c
-    ld      hl, _d
+    ld      de, _c      ; hl -> _d
     call    _faddInline
 ; fsub _b, _b, _d
-    ld      de, _b
-    ld      hl, _d
+    ld      hl, _d      ; de -> _b
     call    _fsubInline
 ; fsquare _d, _e
-    ld      iy, _e
-    lea     de, iy + (_d - _e)
+    ld      iy, _e      ; de -> _d
     ld      (ix + mul.arg2), iy
     call    _fmul.start
 ; fsquare _f, _a
@@ -203,8 +198,7 @@ mainCalculationLoop:
     ld      hl, _a
     ld      c, INT_SIZE
     ldir
-    ld      de, _e
-    ld      hl, _c
+    ld      de, _e      ; hl -> _c
     call    _faddInline.noCarry
 ; fsub _a, _a, _c
     ld      de, _a
@@ -234,8 +228,7 @@ mainCalculationLoop:
     ld      hl, _d
     call    _faddInline.noCarry
 ; fmul _c, _c, _a
-    ld      iy, _c
-    lea     de, iy
+    ld      iy, _c      ; de -> _c
     lea     hl, iy + (_a - _c)
     call    _fmul
 ; fmul _a, _d, _f
