@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 602 bytes
-; Relocation size: 1024 bytes
+; Code size: 585 bytes
+; Relocation size: 1022 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -16,6 +16,10 @@ end namespace
     section .text
     public _tls_x25519_secret
     public _tls_x25519_publickey
+
+macro assert_same_page in1, in2
+    assert (in1 and 0xFFFF00) = (in2 and 0xFFFF00)
+end macro
 
 arg1 := 3
 arg2 := 6
@@ -58,7 +62,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,660,886 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,626,210 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -155,23 +159,23 @@ mainCalculationLoop:
     call    _swap
 ; fadd _e, _a, _c
     ex      de, hl      ; de -> _e
-    ld      hl, _a
+    ld      l, _a and 0xFF
     ld      bc, INT_SIZE
     ldir
     ld      de, _e      ; hl -> _c
     call    _faddInline
 ; fsub _a, _a, _c
     ld      de, _a
-    ld      hl, _c
+    ld      l, _c and 0xFF
     call    _fsubInline
 ; fadd _c, _b, _d
-    ld      hl, _b      ; de -> _c
+    ld      l, _b and 0xFF      ; de -> _c
     ld      c, INT_SIZE
     ldir
-    ld      de, _c      ; hl -> _d
+    ld      e, _c and 0xFF      ; hl -> _d
     call    _faddInline
 ; fsub _b, _b, _d
-    ld      hl, _d      ; de -> _b
+    ld      l, _d and 0xFF      ; de -> _b
     call    _fsubInline
 ; fsquare _d, _e
     ld      iy, _e      ; de -> _d
@@ -202,7 +206,7 @@ mainCalculationLoop:
     call    _faddInline.noCarry
 ; fsub _a, _a, _c
     ld      de, _a
-    ld      hl, _c
+    ld      l, _c and 0xFF
     call    _fsubInline
 ; fsquare _b, _a
     ld      iy, _a
@@ -215,12 +219,12 @@ mainCalculationLoop:
     ld      c, INT_SIZE
     ldir
 ; fsub _c, _c, _f
-    ld      de, _c
+    ld      e, _c and 0xFF
     ld      hl, _f
     call    _fsubInline.noCarry
 ; fmul _a, _c, _121665
     ld      iy, _c
-    lea     de, iy + (_a - _c)
+    ld      e, _a and 0xFF
     ld      hl, _121665
     call    _fmul
 ; fadd _a, _a, _d
@@ -249,7 +253,7 @@ mainCalculationLoop:
 ; swap _a, _b
     pop     bc
     ld      de, _a
-    ld      hl, _b
+    ld      l, _b and 0xFF
     ld      iyh, INT_SIZE / 4 * 2
     call    _swap
 
@@ -403,7 +407,7 @@ _fmul:
 ; Also setup the other variables
     lea     de, iy
     ld      iyl, INT_SIZE
-    ld      hl, _product
+    ld      l, _product and 0xFF
 ; Within a loop, get a single byte from a, and multiply it with the entirety of b, adding it to the product immediately
 .mainLoop:
     ex      de, hl          ; de -> output pointer, hl -> a + index
@@ -625,6 +629,12 @@ _f:
 ; Used for multiplication
 _product:
     rb      INT_SIZE * 2
+
+assert_same_page _a, _c
+assert_same_page _a, _b
+assert_same_page _a, _d
+assert_same_page _a, _e
+assert_same_page _product, (_product + INT_SIZE * 2)
 
 
 repeat 1, x:$-_clamped
