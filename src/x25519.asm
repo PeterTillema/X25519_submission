@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 659 bytes
-; Relocation size: 1022 bytes
+; Code size: 661 bytes
+; Relocation size: 1021 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -119,7 +119,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,890,378 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,883,240 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedByte := 0                     ; The byte in the clamped array
@@ -212,6 +212,7 @@ mainCalculationLoop:
     ld      c, a
 ; First swaps
     swap _a, _b
+    ld      c, 0
 ; Do the main calculations!
     fadd _e, _a, _c
     fsubInline _a, _c
@@ -364,7 +365,8 @@ _fmul:
     push    de
 ; Setup the product output
     ld      hl, _product
-    ld      bc, INT_SIZE - 1
+    ld      b, c            ; c is known to be 0, since that's the case after all operations
+    ld      c, INT_SIZE - 1
     ld      (hl), b
     ld      de, _product + 1
     ldir
