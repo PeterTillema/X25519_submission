@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 661 bytes
+; Code size: 664 bytes
 ; Relocation size: 1021 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
@@ -119,7 +119,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,883,240 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,883,192 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.clampedByte := 0                     ; The byte in the clamped array
@@ -272,7 +272,6 @@ mainCalculationLoop:
     ld      hl, (ix + sparg1 + tempVariables.size)
 ; Perform the pack to calculate mod p instead of mod 2p
     ld      de, _product
-    push    de, hl
 ; Subtract p from out and store to _product
     ld      a, (hl)
     sub     a, -P_OFFSET
@@ -292,8 +291,11 @@ mainCalculationLoop:
     sbc     a, 0x7F
     ld      (de), a
     ccf                     ; If the carry flag WAS set, out < p, so no swap needed. Flip the carry flag and call the swap
-    pop     hl, de
     sbc     a, a
+    ld      bc, -INT_SIZE + 1
+    add     hl, bc
+    ex      de, hl
+    add     hl, bc
     ld      c, a
     ld      iyh, INT_SIZE / 4
     jp      _swap
