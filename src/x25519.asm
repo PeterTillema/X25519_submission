@@ -205,7 +205,7 @@ mainCalculationLoop:
     ldir
     ld      de, _e
     ld      hl, _c
-    call    _faddInline + 1
+    call    _faddInline.noCarry
 ; fsub _a, _a, _c
     ld      de, _a
     ld      hl, _c
@@ -223,7 +223,7 @@ mainCalculationLoop:
 ; fsub _c, _c, _f
     ld      de, _c
     ld      hl, _f
-    call    _fsubInline + 1
+    call    _fsubInline.noCarry
 ; fmul _a, _c, _121665
     ld      iy, _c
     lea     de, iy + (_a - _c)
@@ -232,7 +232,7 @@ mainCalculationLoop:
 ; fadd _a, _a, _d
     ld      de, _a
     ld      hl, _d
-    call    _faddInline + 1
+    call    _faddInline.noCarry
 ; fmul _c, _c, _a
     ld      iy, _c
     lea     de, iy
@@ -506,6 +506,7 @@ _faddInline:
 ;   DE = out + INT_SIZE
 ;   HL = out + INT_SIZE - 1
     xor     a, a            ; Reset carry flag
+.noCarry:
     ld      b, INT_SIZE / 4
 .addLoop1:
 repeat 4
@@ -550,6 +551,7 @@ _fsubInline:
 ;   DE = out + INT_SIZE
 ;   HL = out + INT_SIZE - 1
     xor     a, a            ; Reset carry flag
+.noCarry:
     ld      b, INT_SIZE / 4
 .subLoop1:
 repeat 4
