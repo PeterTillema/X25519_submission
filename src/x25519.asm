@@ -356,8 +356,8 @@ _fmul:
 ;  BCU = 0
 ;    B = ?
 ;    C = 0
-;   DE = _product + INT_SIZE - 1
-;   HL = ?
+;   DE = _product + INT_SIZE * 2 - 1
+;   HL = out + INT_SIZE - 1
 
 ; Copy the input variables to the temporary storage
     ld      (ix + mul.arg2), hl
@@ -466,8 +466,8 @@ _faddInline:
 ;  BCU = ?
 ;    B = 0
 ;    C = 0
-;   DE = 0
-;   HL = ?
+;   DE = out + INT_SIZE
+;   HL = out + INT_SIZE - 1
     xor     a, a            ; Reset carry flag
     ld      b, INT_SIZE / 4
 .addLoop1:
