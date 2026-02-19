@@ -349,8 +349,8 @@ _swap:
 ;  BCU = ?
 ;    B = ?
 ;    C = swap ? 0xFF : 0
-;   DE = a + INT_SIZE
-;   HL = b + INT_SIZE
+;   DE = a + INT_SIZE (+ INT_SIZE)
+;   HL = b + INT_SIZE (+ INT_SIZE)
 .swapLoop:
 repeat 4
     ld      a, (de)         ; t = c & (a[i] ^ b[i])
