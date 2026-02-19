@@ -17,67 +17,6 @@ end namespace
     public _tls_x25519_secret
     public _tls_x25519_publickey
 
-; Some macros to make code more clear
-macro copy source, out
-    ld      de, out
-    ld      hl, source
-    ld      bc, INT_SIZE
-    ldir
-end macro
-
-macro swap in1, in2
-    ld      de, in1
-    ld      hl, in2
-    ld      iyh, INT_SIZE / 4 * 2
-    call    _swap
-end macro
-
-macro fmul out, in1, in2
-    ld      de, out
-    ld      iy, in1
-    ld      hl, in2
-    call    _fmul
-end macro
-
-macro fsquare out, in
-    ld      de, out
-    ld      iy, in
-    ld      (ix + mul.arg2), iy
-    call    _fmul.start
-end macro
-
-macro fadd out, in1, in2
-    copy in1, out
-    ld      de, out
-    ld      hl, in2
-    call    _faddInline
-end macro
-
-macro faddNoCarry out, in1, in2
-    copy in1, out
-    ld      de, out
-    ld      hl, in2
-    call    _faddInline + 1
-end macro
-
-macro faddInlineNoCarry out, in2
-    ld      de, out
-    ld      hl, in2
-    call    _faddInline + 1
-end macro
-
-macro fsubInline out, in2
-    ld      de, out
-    ld      hl, in2
-    call    _fsubInline
-end macro
-
-macro fsubInlineNoCarry out, in2
-    ld      de, out
-    ld      hl, in2
-    call    _fsubInline + 1
-end macro
-
 arg1 := 3
 arg2 := 6
 arg3 := 9
@@ -209,31 +148,116 @@ mainCalculationLoop:
     sbc     a, a
     ld      c, a
     push    bc
-; First swaps
-    swap _a, _b
-; Do the main calculations!
-    fadd _e, _a, _c
-    fsubInline _a, _c
-    fadd _c, _b, _d
-    fsubInline _b, _d
-    fsquare _d, _e
-    fsquare _f, _a
-    fmul _a, _c, _a
-    fmul _c, _b, _e
-    faddNoCarry _e, _a, _c
-    fsubInline _a, _c
-    fsquare _b, _a
-    copy _d, _c
-    fsubInlineNoCarry _c, _f
-    fmul _a, _c, _121665
-    faddInlineNoCarry _a, _d
-    fmul _c, _c, _a
-    fmul _a, _d, _f
-    fmul _d, _b, (ix + sparg3 + tempVariables.size)
-    fsquare _b, _e
-; Final swaps
+; swap _a, _b
+    ld      de, _a
+    ld      hl, _b
+    ld      iyh, INT_SIZE / 4 * 2
+    call    _swap
+; fadd _e, _a, _c
+    ld      de, _e
+    ld      hl, _a
+    ld      bc, INT_SIZE
+    ldir
+    ld      de, _e
+    ld      hl, _c
+    call    _faddInline
+; fsub _a, _a, _c
+    ld      de, _a
+    ld      hl, _c
+    call    _fsubInline
+; fadd _c, _b, _d
+    ld      de, _c
+    ld      hl, _b
+    ld      bc, INT_SIZE
+    ldir
+    ld      de, _c
+    ld      hl, _d
+    call    _faddInline
+; fsub _b, _b, _d
+    ld      de, _b
+    ld      hl, _d
+    call    _fsubInline
+; fsquare _d, _e
+    ld      de, _d
+    ld      iy, _e
+    ld      (ix + mul.arg2), iy
+    call    _fmul.start
+; fsquare _f, _a
+    ld      de, _f
+    ld      iy, _a
+    ld      (ix + mul.arg2), iy
+    call    _fmul.start
+; fmul _a, _c, _a
+    ld      de, _a
+    ld      iy, _c
+    ld      hl, _a
+    call    _fmul
+; fmul _c, _b, _e
+    ld      de, _c
+    ld      iy, _b
+    ld      hl, _e
+    call    _fmul
+; fadd _e, _a, _c
+    ld      de, _e
+    ld      hl, _a
+    ld      bc, INT_SIZE
+    ldir
+    ld      de, _e
+    ld      hl, _c
+    call    _faddInline + 1
+; fsub _a, _a, _c
+    ld      de, _a
+    ld      hl, _c
+    call    _fsubInline
+; fsquare _b, _a
+    ld      de, _b
+    ld      iy, _a
+    ld      (ix + mul.arg2), iy
+    call    _fmul.start
+; copy _d, _c
+    ld      de, _c
+    ld      hl, _d
+    ld      bc, INT_SIZE
+    ldir
+; fsub _c, _c, _f
+    ld      de, _c
+    ld      hl, _f
+    call    _fsubInline + 1
+; fmul _a, _c, _121665
+    ld      de, _a
+    ld      iy, _c
+    ld      hl, _121665
+    call    _fmul
+; fadd _a, _a, _d
+    ld      de, _a
+    ld      hl, _d
+    call    _faddInline + 1
+; fmul _c, _c, _a
+    ld      de, _c
+    ld      iy, _c
+    ld      hl, _a
+    call    _fmul
+; fmul _a, _d, _f
+    ld      de, _a
+    ld      iy, _d
+    ld      hl, _f
+    call    _fmul
+; fmul _d, _b, (ix + sparg3 + tempVariables.size)
+    ld      de, _d
+    ld      iy, _b
+    ld      hl, (ix + sparg3 + tempVariables.size)
+    call    _fmul
+; fsquare _b, _e
+    ld      de, _b
+    ld      iy, _e
+    ld      (ix + mul.arg2), iy
+    call    _fmul.start
+; swap _a, _b
     pop     bc
-    swap _a, _b
+    ld      de, _a
+    ld      hl, _b
+    ld      iyh, INT_SIZE / 4 * 2
+    call    _swap
 
 ; Get to the next bit
     pop     de              ; de -> clamped pointer
@@ -251,18 +275,30 @@ mainCalculationLoop:
 ; Inverse _c
     ld      (ix + scalar.mainLoopIndex), 254
 .inverseLoop:
-    fsquare _c, _c
+; fsquare _c, _c
+    ld      de, _c
+    ld      iy, _c
+    ld      (ix + mul.arg2), iy
+    call    _fmul.start
     ld      a, (ix + scalar.mainLoopIndex)
     cp      a, 3
     jr      z, .continue2
     cp      a, 5
     jr      z, .continue2
-    fmul _c, _c, _b
+; fmul _c, _c, _b
+    ld      de, _c
+    ld      iy, _c
+    ld      hl, _b
+    call    _fmul
 .continue2:
     dec     (ix + scalar.mainLoopIndex)
     jr      nz, .inverseLoop
 ; Final multiplication, putting the result in out
-    fmul (ix + sparg1 + tempVariables.size), _a, _c
+; fmul (ix + sparg1 + tempVariables.size), _a, _c
+    ld      de, (ix + sparg1 + tempVariables.size)
+    ld      iy, _a
+    ld      hl, _c
+    call    _fmul
 ; Out is now in the range [0, 2^256), which is slightly more than 2p. Subtract p and swap if necessary. Repeat this step
 ; to account for the possible output in the range of [2p, 2^256).
     call    .normalizeModP
