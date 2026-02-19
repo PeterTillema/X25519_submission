@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 664 bytes
+; Code size: 660 bytes
 ; Relocation size: 1021 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
@@ -119,15 +119,14 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,883,192 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,882,172 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
-scalar.clampedByte := 0                     ; The byte in the clamped array
-scalar.mainLoopIndex := 1                   ; Main loop index
+scalar.mainLoopIndex := 0                   ; Main loop index
 mul:
-mul.arg2 := 2
+mul.arg2 := 1
 
-tempVariables.size := 5
+tempVariables.size := 4
 
     push    ix
     ld      ix, -tempVariables.size
@@ -208,8 +207,8 @@ mainCalculationLoop:
     rlc     (hl)         ; hl -> clamped pointer
     push    hl
     sbc     a, a
-    ld      (ix + scalar.clampedByte), a
     ld      c, a
+    push    bc
 ; First swaps
     swap _a, _b
     ld      c, 0
@@ -234,7 +233,7 @@ mainCalculationLoop:
     fmul _d, _b, (ix + sparg3 + tempVariables.size)
     fsquare _b, _e
 ; Final swaps
-    ld      c, (ix + scalar.clampedByte)
+    pop     bc
     swap _a, _b
 
 ; Get to the next bit
