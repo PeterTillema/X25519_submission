@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 658 bytes
+; Code size: 641 bytes
 ; Relocation size: 1021 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,880,132 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,863,836 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -178,8 +178,8 @@ mainCalculationLoop:
     ld      hl, _d
     call    _fsubInline
 ; fsquare _d, _e
-    ld      de, _d
     ld      iy, _e
+    lea     de, iy + (_d - _e)
     ld      (ix + mul.arg2), iy
     call    _fmul.start
 ; fsquare _f, _a
@@ -188,14 +188,14 @@ mainCalculationLoop:
     ld      (ix + mul.arg2), iy
     call    _fmul.start
 ; fmul _a, _c, _a
-    ld      de, _a
     ld      iy, _c
-    ld      hl, _a
+    lea     de, iy + (_a - _c)
+    lea     hl, iy + (_a - _c)
     call    _fmul
 ; fmul _c, _b, _e
-    ld      de, _c
     ld      iy, _b
-    ld      hl, _e
+    lea     de, iy + (_c - _b)
+    lea     hl, iy + (_e - _b)
     call    _fmul
 ; fadd _e, _a, _c
     ld      de, _e
@@ -210,8 +210,8 @@ mainCalculationLoop:
     ld      hl, _c
     call    _fsubInline
 ; fsquare _b, _a
-    ld      de, _b
     ld      iy, _a
+    lea     de, iy + (_b - _a)
     ld      (ix + mul.arg2), iy
     call    _fmul.start
 ; copy _d, _c
@@ -224,8 +224,8 @@ mainCalculationLoop:
     ld      hl, _f
     call    _fsubInline + 1
 ; fmul _a, _c, _121665
-    ld      de, _a
     ld      iy, _c
+    lea     de, iy + (_a - _c)
     ld      hl, _121665
     call    _fmul
 ; fadd _a, _a, _d
@@ -233,23 +233,23 @@ mainCalculationLoop:
     ld      hl, _d
     call    _faddInline + 1
 ; fmul _c, _c, _a
-    ld      de, _c
     ld      iy, _c
-    ld      hl, _a
+    lea     de, iy
+    lea     hl, iy + (_a - _c)
     call    _fmul
 ; fmul _a, _d, _f
-    ld      de, _a
     ld      iy, _d
-    ld      hl, _f
+    lea     de, iy + (_a - _d)
+    lea     hl, iy + (_f - _d)
     call    _fmul
 ; fmul _d, _b, (ix + sparg3 + tempVariables.size)
-    ld      de, _d
     ld      iy, _b
+    lea     de, iy + (_d - _b)
     ld      hl, (ix + sparg3 + tempVariables.size)
     call    _fmul
 ; fsquare _b, _e
-    ld      de, _b
     ld      iy, _e
+    lea     de, iy + (_b - _e)
     ld      (ix + mul.arg2), iy
     call    _fmul.start
 ; swap _a, _b
@@ -276,8 +276,8 @@ mainCalculationLoop:
     ld      (ix + scalar.mainLoopIndex), 254
 .inverseLoop:
 ; fsquare _c, _c
-    ld      de, _c
     ld      iy, _c
+    lea     de, iy
     ld      (ix + mul.arg2), iy
     call    _fmul.start
     ld      a, (ix + scalar.mainLoopIndex)
@@ -286,9 +286,9 @@ mainCalculationLoop:
     cp      a, 5
     jr      z, .continue2
 ; fmul _c, _c, _b
-    ld      de, _c
     ld      iy, _c
-    ld      hl, _b
+    lea     de, iy
+    lea     hl, iy + (_b - _c)
     call    _fmul
 .continue2:
     dec     (ix + scalar.mainLoopIndex)
@@ -297,7 +297,7 @@ mainCalculationLoop:
 ; fmul (ix + sparg1 + tempVariables.size), _a, _c
     ld      de, (ix + sparg1 + tempVariables.size)
     ld      iy, _a
-    ld      hl, _c
+    lea     hl, iy + (_c - _a)
     call    _fmul
 ; Out is now in the range [0, 2^256), which is slightly more than 2p. Subtract p and swap if necessary. Repeat this step
 ; to account for the possible output in the range of [2p, 2^256).
