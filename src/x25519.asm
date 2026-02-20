@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 585 bytes
+; Code size: 551 bytes
 ; Relocation size: 1022 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
@@ -62,7 +62,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,626,210 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,591,530 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -158,14 +158,14 @@ mainCalculationLoop:
     ld      iyh, INT_SIZE / 4 * 2
     call    _swap
 ; fadd _e, _a, _c
-    ex      de, hl      ; de -> _e
+    ex      de, hl              ; de -> _e
     ld      l, _a and 0xFF
     ld      bc, INT_SIZE
     ldir
-    ld      de, _e      ; hl -> _c
+    ld      e, _e and 0xFF      ; hl -> _c
     call    _faddInline
 ; fsub _a, _a, _c
-    ld      de, _a
+    ld      e, _a and 0xFF
     ld      l, _c and 0xFF
     call    _fsubInline
 ; fadd _c, _b, _d
@@ -178,49 +178,48 @@ mainCalculationLoop:
     ld      l, _d and 0xFF      ; de -> _b
     call    _fsubInline
 ; fsquare _d, _e
-    ld      iy, _e      ; de -> _d
+    ld      iy, _e              ; de -> _d
     ld      (ix + mul.arg2), iy
     call    _fmul.start
 ; fsquare _f, _a
-    ld      de, _f
+    ld      e, _f and 0xFF
     ld      iy, _a
     ld      (ix + mul.arg2), iy
     call    _fmul.start
 ; fmul _a, _c, _a
     ld      iy, _c
-    lea     de, iy + (_a - _c)
-    lea     hl, iy + (_a - _c)
+    ld      e, _a and 0xFF
+    ld      l, e
     call    _fmul
 ; fmul _c, _b, _e
     ld      iy, _b
-    ex      de, hl
-    inc     de          ; de -> _c
-    lea     hl, iy + (_e - _b)
+    ld      e, _c and 0xFF
+    ld      l, _e and 0xFF
     call    _fmul
 ; fadd _e, _a, _c
-    ld      de, _e
-    ld      hl, _a
+    ld      e, _e and 0xFF
+    ld      l, _a and 0xFF
     ld      c, INT_SIZE
     ldir
-    ld      de, _e      ; hl -> _c
+    ld      e, _e and 0xFF      ; hl -> _c
     call    _faddInline.noCarry
 ; fsub _a, _a, _c
-    ld      de, _a
+    ld      e, _a and 0xFF
     ld      l, _c and 0xFF
     call    _fsubInline
 ; fsquare _b, _a
     ld      iy, _a
-    lea     de, iy + (_b - _a)
+    ld      e, _b and 0xFF
     ld      (ix + mul.arg2), iy
     call    _fmul.start
 ; copy _d, _c
-    ld      de, _c
-    inc     hl          ; hl -> _d
+    ld      e, _c and 0xFF
+    inc     hl                  ; hl -> _d
     ld      c, INT_SIZE
     ldir
 ; fsub _c, _c, _f
     ld      e, _c and 0xFF
-    ld      hl, _f
+    ld      l, _f and 0xFF
     call    _fsubInline.noCarry
 ; fmul _a, _c, _121665
     ld      iy, _c
@@ -228,31 +227,31 @@ mainCalculationLoop:
     ld      hl, _121665
     call    _fmul
 ; fadd _a, _a, _d
-    ld      de, _a
-    ld      hl, _d
+    ld      e, _a and 0xFF
+    ld      l, _d and 0xFF
     call    _faddInline.noCarry
 ; fmul _c, _c, _a
-    ld      iy, _c      ; de -> _c
-    lea     hl, iy + (_a - _c)
+    ld      iy, _c              ; de -> _c
+    ld      l, _a and 0xFF
     call    _fmul
 ; fmul _a, _d, _f
     ld      iy, _d
-    lea     de, iy + (_a - _d)
-    lea     hl, iy + (_f - _d)
+    ld      e, _a and 0xFF
+    ld      l, _f and 0xFF
     call    _fmul
 ; fmul _d, _b, (ix + sparg3 + tempVariables.size)
     ld      iy, _b
-    lea     de, iy + (_d - _b)
+    ld      e, _d and 0xFF
     ld      hl, (ix + sparg3 + tempVariables.size)
     call    _fmul
 ; fsquare _b, _e
     ld      iy, _e
-    lea     de, iy + (_b - _e)
+    ld      e, _b and 0xFF
     ld      (ix + mul.arg2), iy
     call    _fmul.start
 ; swap _a, _b
     pop     bc
-    ld      de, _a
+    ld      e, _a and 0xFF
     ld      l, _b and 0xFF
     ld      iyh, INT_SIZE / 4 * 2
     call    _swap
@@ -602,6 +601,8 @@ reloc.base := ti.cursorImage
 reloc.offset := reloc.base - reloc.data
 
     section .data
+; Align _a to 0xXXXX00
+    db      ((0xE0 - (($ and 0xFF))) and 0xFF) dup 0
     private _clamped
     private _a
     private _b
@@ -629,12 +630,6 @@ _f:
 ; Used for multiplication
 _product:
     rb      INT_SIZE * 2
-
-assert_same_page _a, _c
-assert_same_page _a, _b
-assert_same_page _a, _d
-assert_same_page _a, _e
-assert_same_page _product, (_product + INT_SIZE * 2)
 
 
 repeat 1, x:$-_clamped
