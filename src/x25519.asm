@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 545 bytes
-; Relocation size: 1018 bytes
+; Relocation size: 1012 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       219,194,277 cc      ; Assuming yield_fn = NULL
+; Timing current:       217,433,403 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -412,16 +412,17 @@ _fmul:
     push    hl
     ld      iyh, a
     ld      hl, (ix + mul.arg2)
-    xor     a, a            ; Reset carry + carry flag
 repeat INT_SIZE
     ld      c, (hl)
     ld      b, iyh
     mlt     bc
+if % <> 1
     adc     a, c
     ld      c, a            ; Temporarily save a
     adc     a, b            ; b + cf -> b
     sub     a, c
     ld      b, a
+end if
     ld      a, (de)         ; Restore a and add to (de)
     add     a, c
     ld      (de), a
