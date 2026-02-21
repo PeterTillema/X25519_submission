@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 549 bytes
-; Relocation size: 1024 bytes
+; Relocation size: 1022 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -62,7 +62,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,521,174 cc      ; Assuming yield_fn = NULL
+; Timing current:       220,518,355 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -202,7 +202,7 @@ mainCalculationLoop:
     ld      c, INT_SIZE
     ldir
     ld      e, _e and 0xFF      ; hl -> _c
-    call    _faddInline.noCarry
+    call    _faddInline
 ; fsub _a, _a, _c
     ld      e, _a and 0xFF
     ld      l, _c and 0xFF
@@ -220,7 +220,7 @@ mainCalculationLoop:
 ; fsub _c, _c, _f
     ld      e, _c and 0xFF
     ld      l, _f and 0xFF
-    call    _fsubInline.noCarry
+    call    _fsubInline
 ; fmul _a, _c, _121665
     ld      iy, _c
     ld      e, _a and 0xFF
@@ -229,7 +229,7 @@ mainCalculationLoop:
 ; fadd _a, _a, _d
     ld      e, _a and 0xFF
     ld      l, _d and 0xFF
-    call    _faddInline.noCarry
+    call    _faddInline
 ; fmul _c, _c, _a
     ld      iy, _c              ; de -> _c
     ld      l, _a and 0xFF
@@ -495,6 +495,7 @@ end repeat
 _faddInline:
 ; Performs an inline addition between two big integers mod 2p, and returns the result in the first num with mod 2p.
 ; Inputs:
+;   cf = reset
 ;   DE = out, a mod 2p
 ;   HL = b mod 2p
 ; Outputs:
@@ -503,8 +504,6 @@ _faddInline:
 ;    C = 0
 ;   DE = out + INT_SIZE
 ;   HL = out + INT_SIZE - 1
-    xor     a, a            ; Reset carry flag
-.noCarry:
     ld      b, INT_SIZE / 4
 .addLoop1:
 repeat 4
@@ -540,6 +539,7 @@ end repeat
 _fsubInline:
 ; Performs an inline subtraction between two big integers mod 2p, and returns the result in the first num in mod 2p again.
 ; Inputs:
+;   cf = reset
 ;   DE = out, a mod 2p
 ;   HL = b mod 2p
 ; Outputs:
@@ -548,8 +548,6 @@ _fsubInline:
 ;    C = 0
 ;   DE = out + INT_SIZE
 ;   HL = out + INT_SIZE - 1
-    xor     a, a            ; Reset carry flag
-.noCarry:
     ld      b, INT_SIZE / 4
 .subLoop1:
 repeat 4
