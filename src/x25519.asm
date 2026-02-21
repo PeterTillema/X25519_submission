@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 545 bytes
-; Relocation size: 1024 bytes
+; Relocation size: 1023 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       217,422,267 cc      ; Assuming yield_fn = NULL
+; Timing current:       217,414,109 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -441,13 +441,12 @@ end repeat
     add     a, e
     ld      e, a
     pop     hl
-    cp      a, (_product + INT_SIZE) and 0xFF
+    sub     a, (_product + INT_SIZE) and 0xFF
     jp      nz, .mainLoop
 
 ; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and add to product + 32 directly
     ex      de, hl          ; hl -> _product + INT_SIZE
     ld      de, _product
-    xor     a, a            ; Reset carry for the next calculations
 .addMul38Loop:
 repeat 8
     ld      c, (hl)
