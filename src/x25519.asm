@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 545 bytes
-; Relocation size: 1022 bytes
+; Relocation size: 1018 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -62,7 +62,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       219,570,316 cc      ; Assuming yield_fn = NULL
+; Timing current:       219,194,277 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -419,7 +419,6 @@ _fmul:
     xor     a, a            ; Reset carry + carry flag
 repeat INT_SIZE
     ld      c, (hl)
-    inc     hl
     ld      b, iyh
     mlt     bc
     adc     a, c
@@ -432,6 +431,9 @@ repeat INT_SIZE
     ld      (de), a
     ld      a, b
     inc     de
+if % <> INT_SIZE
+    inc     hl
+end if
 end repeat
 ; Add the last carry byte to the product. Since we work from low to high indexes, this last carry byte is guaranteed to
 ; not overlap with the previous product result, thus storing it directly works properly.
@@ -462,15 +464,16 @@ repeat 8
     ld      a, (de)         ; Restore a and add (de) to (hl)
     add     a, c
     ld      (hl), a
-    inc     hl
     inc     de
     ld      a, b
+if % <> 8
+    inc     hl
+end if
 end repeat
-    inc     l               ; l = 0 -> stop
-    dec     l
+    inc     l               ; l = 0 -> stop, since then it's _product + INT_SIZE * 2 = XXXX00
     jp      nz, .addMul38Loop
 ; Propagate the last carry byte back to the first value and store to out directly
-    adc     a, 0
+    adc     a, l
     ld      c, a
     ld      b, 2 * P_OFFSET
     mlt     bc
