@@ -2,8 +2,8 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 545 bytes
-; Relocation size: 1023 bytes
-; Data size: 288 bytes
+; Relocation size: 1021 bytes
+; Data size: 288 bytes (+ padding)
 ; Read only data size: 64 bytes
 
     assume adl=1
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       217,414,109 cc      ; Assuming yield_fn = NULL
+; Timing current:       216,827,151 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -407,28 +407,36 @@ _fmul:
     ld      e, _product and 0xFF
 ; Within a loop, get a single byte from a, and multiply it with the entirety of b, adding it to the product immediately
 .mainLoop:
-    ld      a, (hl)         ; de -> output pointer, hl -> a + index, a -> a[index]
+    ld      b, (hl)         ; de -> output pointer, hl -> a + index, b -> a[index]
     inc     hl
     push    hl
-    ld      iyh, a
+    ld      iyh, b
     ld      hl, (ix + mul.arg2)
-repeat INT_SIZE
+; First iteration
+    ld      c, (hl)
+    mlt     bc
+    ld      a, (de)         ; Add c to (de)
+    add     a, c
+    ld      (de), a
+    ld      a, b
+    inc     de
+    inc     hl
+; Other iterations
+repeat INT_SIZE - 1
     ld      c, (hl)
     ld      b, iyh
     mlt     bc
-if % <> 1
     adc     a, c
     ld      c, a            ; Temporarily save a
     adc     a, b            ; b + cf -> b
     sub     a, c
     ld      b, a
-end if
     ld      a, (de)         ; Restore a and add to (de)
     add     a, c
     ld      (de), a
     ld      a, b
     inc     de
-if % <> INT_SIZE
+if % <> %%
     inc     hl
 end if
 end repeat
@@ -462,7 +470,7 @@ repeat 8
     ld      (hl), a
     inc     de
     ld      a, b
-if % <> 8
+if % <> %%
     inc     hl
 end if
 end repeat
