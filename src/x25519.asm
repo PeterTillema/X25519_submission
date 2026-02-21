@@ -17,10 +17,6 @@ end namespace
     public _tls_x25519_secret
     public _tls_x25519_publickey
 
-macro assert_same_page in1, in2
-    assert (in1 and 0xFFFF00) = (in2 and 0xFFFF00)
-end macro
-
 arg1 := 3
 arg2 := 6
 arg3 := 9
