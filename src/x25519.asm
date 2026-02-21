@@ -312,6 +312,7 @@ mainCalculationLoop:
     ld      b, INT_SIZE - 2
     ld      c, -1
 .subtractLoop:
+; TODO: you can decide to unroll this loop a few times to have a small speed increase. However, that will only save ~800cc, while you add 150 bytes.
     inc     de
     inc     hl
     ld      a, (hl)
