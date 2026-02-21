@@ -1,7 +1,7 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 549 bytes
+; Code size: 545 bytes
 ; Relocation size: 1024 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
@@ -62,7 +62,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       219,637,572 cc      ; Assuming yield_fn = NULL
+; Timing current:       219,634,536 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -276,7 +276,7 @@ mainCalculationLoop:
 .inverseLoop:
 ; fsquare _c, _c
     ld      iy, _c
-    lea     de, iy
+    ld      e, _c and 0xFF
     ld      (ix + mul.arg2), iy
     call    _fmul.start
     ld      a, (ix + scalar.mainLoopIndex)
@@ -286,8 +286,8 @@ mainCalculationLoop:
     jr      z, .continue2
 ; fmul _c, _c, _b
     ld      iy, _c
-    lea     de, iy
-    lea     hl, iy + (_b - _c)
+    ld      e, _c and 0xFF
+    ld      l, _b and 0xFF
     call    _fmul
 .continue2:
     dec     (ix + scalar.mainLoopIndex)
@@ -296,7 +296,7 @@ mainCalculationLoop:
 ; fmul (ix + sparg1 + tempVariables.size), _a, _c
     ld      de, (ix + sparg1 + tempVariables.size)
     ld      iy, _a
-    lea     hl, iy + (_c - _a)
+    ld      l, _c and 0xFF
     call    _fmul
 ; Out is now in the range [0, 2^256), which is slightly more than 2p. Subtract p and swap if necessary. Repeat this step
 ; to account for the possible output in the range of [2p, 2^256).
