@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 549 bytes
-; Relocation size: 1023 bytes
+; Relocation size: 1024 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -62,7 +62,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       219,958,931 cc      ; Assuming yield_fn = NULL
+; Timing current:       219,637,572 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -484,14 +484,17 @@ end repeat
     ld      a, (de)
     adc     a, b
     ld      (hl), a
-    ld      b, 0
-repeat INT_SIZE - 2
+    ld      c, 0
+    ld      b, (INT_SIZE - 2) / 15
+.addLoop:
+repeat 15
     inc     hl
     inc     de
     ld      a, (de)
-    adc     a, b
+    adc     a, c
     ld      (hl), a
 end repeat
+    djnz    .addLoop
     ret
 
 _faddInline:
@@ -506,9 +509,9 @@ _faddInline:
 ;    C = 0
 ;   DE = out + INT_SIZE
 ;   HL = out + INT_SIZE - 1
-    ld      b, INT_SIZE / 4
+    ld      b, INT_SIZE / 8
 .addLoop1:
-repeat 4
+repeat 8
     ld      a, (de)         ; out[i] = a[i] + b[i] + carry
     adc     a, (hl)
     ld      (de), a
@@ -523,9 +526,9 @@ end repeat
     add     a, (hl)
     ld      (hl), a
     ld      c, b
-    ld      b, (INT_SIZE - 2) / 3
+    ld      b, (INT_SIZE - 2) / 6
 .addLoop2:
-repeat 3
+repeat 6
     inc     hl
     ld      a, (hl)
     adc     a, c
@@ -550,9 +553,9 @@ _fsubInline:
 ;    C = 0
 ;   DE = out + INT_SIZE
 ;   HL = out + INT_SIZE - 1
-    ld      b, INT_SIZE / 4
+    ld      b, INT_SIZE / 8
 .subLoop1:
-repeat 4
+repeat 8
     ld      a, (de)         ; out[i] = a[i] - b[i] - carry
     sbc     a, (hl)
     ld      (de), a
@@ -571,13 +574,19 @@ end repeat
     sub     a, c
     ld      (hl), a
     ld      c, b
-    ld      b, INT_SIZE - 1
+    ld      b, (INT_SIZE - 2) / 5
 .subLoop2:
+repeat 5
     inc     hl
     ld      a, (hl)
     sbc     a, c
     ld      (hl), a
+end repeat
     djnz    .subLoop2
+    inc     hl
+    ld      a, (hl)
+    sbc     a, c
+    ld      (hl), a
     ret
 
     private	reloc_rodata
