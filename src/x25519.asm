@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 549 bytes
-; Relocation size: 1022 bytes
+; Relocation size: 1023 bytes
 ; Data size: 288 bytes
 ; Read only data size: 64 bytes
 
@@ -62,7 +62,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       220,518,355 cc      ; Assuming yield_fn = NULL
+; Timing current:       219,958,931 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -406,13 +406,12 @@ _fmul:
     ld      de, _product + 1
     ldir
 ; Also setup the other variables
-    lea     de, iy
+    lea     hl, iy
     ld      iyl, INT_SIZE
-    ld      l, _product and 0xFF
+    ld      e, _product and 0xFF
 ; Within a loop, get a single byte from a, and multiply it with the entirety of b, adding it to the product immediately
 .mainLoop:
-    ex      de, hl          ; de -> output pointer, hl -> a + index
-    ld      a, (hl)         ; a[index]
+    ld      a, (hl)         ; de -> output pointer, hl -> a + index, a -> a[index]
     inc     hl
     push    hl
     ld      iyh, a
@@ -439,14 +438,16 @@ end repeat
     adc     a, 0
     ld      (de), a
 ; Continue with the main loop
-    ld      hl, -INT_SIZE + 1
-    add     hl, de
-    pop     de
+    ld      a, -INT_SIZE + 1
+    add     a, e
+    ld      e, a
+    pop     hl
     dec     iyl
     jp      nz, .mainLoop
 
 ; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and add to product + 32 directly
-    ld      e, _product and 0xFF    ; hl -> _product + INT_SIZE
+    ex      de, hl          ; hl -> _product + INT_SIZE
+    ld      de, _product
     xor     a, a            ; Reset carry for the next calculations
     ld      iyl, INT_SIZE / 8
 .addMul38Loop:
