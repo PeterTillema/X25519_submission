@@ -121,7 +121,7 @@ mainCalculationLoop:
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;;;;;;;;;;;;;; CHANGE THIS LOGIC TO FIT YOUR NEEDS ;;;;;;;;;;;;;;
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ; A loops back from 255 to 1, so the current logic calls the yield_fn function after 128 loops (every ~2.75 seconds)
+; A loops back from 255 to 1, so the current logic calls the yield_fn function after 128 loops (every ~2.25 seconds)
     push    bc
     sla     b
     jr      nz, .noYieldFn
@@ -260,6 +260,7 @@ mainCalculationLoop:
     add     hl, de          ; hl -> clamped pointer, decremented if the carry flag was set
     dec     b
     jq      nz, mainCalculationLoop
+
 ; Copy _c to _b
     inc     d
     ld      e, _b and 0xFF
@@ -267,6 +268,7 @@ mainCalculationLoop:
     ld      l, _c and 0xFF
     ld      c, INT_SIZE
     ldir
+
 ; Inverse _c
     ld      (ix + scalar.mainLoopIndex), 254
 .inverseLoop:
@@ -288,6 +290,7 @@ mainCalculationLoop:
 .continue2:
     dec     (ix + scalar.mainLoopIndex)
     jr      nz, .inverseLoop
+
 ; Final multiplication, putting the result in out
 ; fmul (ix + sparg1 + tempVariables.size), _a, _c
     ld      de, (ix + sparg1 + tempVariables.size)
@@ -347,6 +350,7 @@ _swap:
 ;    C = swap ? 0xFF : 0
 ;   DE = a + INT_SIZE (+ INT_SIZE)
 ;   HL = b + INT_SIZE (+ INT_SIZE)
+
 .swapLoop:
 repeat 4
     ld      a, (de)         ; t = c & (a[i] ^ b[i])
@@ -386,13 +390,11 @@ _fmul:
 ;   IY = a mod 2p
 ;   HL = b mod 2p
 ; Outputs:
-;  BCU = 0
-;    B = 0
-;    C = ?
+;   BC = 0
 ;   DE = _product + INT_SIZE * 2 - 1
 ;   HL = out + INT_SIZE - 1
 
-; Copy the input variables to the temporary storage
+; Copy the input variable to the temporary storage
     ld      (ix + mul.arg2), hl
 .start:
     push    de
@@ -476,6 +478,7 @@ end if
 end repeat
     inc     l               ; l = 0 -> stop, since then it's _product + INT_SIZE * 2 = XXXX00
     jp      nz, .addMul38Loop
+
 ; Propagate the last carry byte back to the first value and store to out directly
     adc     a, l
     ld      c, a
@@ -510,11 +513,12 @@ _faddInline:
 ;   DE = out, a mod 2p
 ;   HL = b mod 2p
 ; Outputs:
-;  BCU = ?
+;  BCU = untouched
 ;    B = 0
 ;    C = 0
 ;   DE = out + INT_SIZE
 ;   HL = out + INT_SIZE - 1
+
     ld      b, INT_SIZE / 8
 .addLoop1:
 repeat 8
@@ -554,11 +558,12 @@ _fsubInline:
 ;   DE = out, a mod 2p
 ;   HL = b mod 2p
 ; Outputs:
-;  BCU = ?
+;  BCU = untouched
 ;    B = 0
 ;    C = 0
 ;   DE = out + INT_SIZE
 ;   HL = out + INT_SIZE - 1
+
     ld      b, INT_SIZE / 8
 .subLoop1:
 repeat 8
@@ -569,6 +574,7 @@ repeat 8
     inc     de
 end repeat
     djnz    .subLoop1
+
 ; Now out is in the range (-2^255+19, 2^255-19). If the carry flag is set, the value is "negative", but we can easily
 ; calculate a mod 2p by subtracting 38 from the entire value, such that the output is always [0, 2p).
     sbc     a, a
