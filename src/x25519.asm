@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 544 bytes
-; Relocation size: 1024 bytes
+; Relocation size: 1023 bytes
 ; Data size: 320 bytes (+ padding)
 ; Read only data size: 64 bytes
 
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       215,953,142 cc      ; Assuming yield_fn = NULL
+; Timing current:       215,944,984 cc      ; Assuming yield_fn = NULL
 tempVariables:
 tempVariables.mainLoopIndex := 0                   ; Main loop index
 
@@ -486,16 +486,16 @@ end repeat
     ld      c, a
     ld      b, 2 * P_OFFSET
     mlt     bc
-    pop     hl              ; hl -> out, de -> _product + INT_SIZE
     ld      a, (de)
     add     a, c
+    ld      c, l            ; c -> 0
+    pop     hl              ; hl -> out, de -> _product + INT_SIZE
     ld      (hl), a
     inc     hl
     inc     de
     ld      a, (de)
     adc     a, b
     ld      (hl), a
-    ld      c, 0
     ld      b, (INT_SIZE - 2) / 15
 .addLoop:
 repeat 15
