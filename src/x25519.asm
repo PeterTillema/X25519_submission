@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 569 bytes
-; Relocation size: 1023 bytes
+; Code size: 544 bytes
+; Relocation size: 1024 bytes
 ; Data size: 320 bytes (+ padding)
 ; Read only data size: 64 bytes
 
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       215,960,525 cc      ; Assuming yield_fn = NULL
+; Timing current:       215,953,142 cc      ; Assuming yield_fn = NULL
 tempVariables:
 tempVariables.mainLoopIndex := 0                   ; Main loop index
 
@@ -180,23 +180,21 @@ mainCalculationLoop:
     call    _fsubInline
 ; fsquare _d, _e
     ld      iy, _e              ; de -> _d
-    ld      (_fmul.mulArg2SMC), iy
-    call    _fmul.start
+    call    _fmul.iy
 ; fsquare _f, _a
     ld      e, _f and 0xFF
     ld      iy, _a
-    ld      (_fmul.mulArg2SMC), iy
-    call    _fmul.start
+    call    _fmul.iy
 ; fmul _a, _c, _a
     ld      iy, _c
     ld      e, _a and 0xFF
     ld      l, e
-    call    _fmul
+    call    _fmul.hl
 ; fmul _c, _b, _e
     ld      iy, _b
     ld      e, _c and 0xFF
     ld      l, _e and 0xFF
-    call    _fmul
+    call    _fmul.hl
 ; fadd _e, _a, _c
     ld      e, _e and 0xFF
     ld      l, _a and 0xFF
@@ -211,8 +209,7 @@ mainCalculationLoop:
 ; fsquare _b, _a
     ld      iy, _a
     ld      e, _b and 0xFF
-    ld      (_fmul.mulArg2SMC), iy
-    call    _fmul.start
+    call    _fmul.iy
 ; copy _d, _c
     ld      e, _c and 0xFF
     inc     hl                  ; hl -> _d
@@ -226,7 +223,7 @@ mainCalculationLoop:
     ld      iy, _c
     ld      e, _a and 0xFF
     ld      hl, _121665
-    call    _fmul
+    call    _fmul.hl
 ; fadd _a, _a, _d
     ld      e, _a and 0xFF
     ld      l, _d and 0xFF
@@ -234,22 +231,21 @@ mainCalculationLoop:
 ; fmul _c, _c, _a
     ld      iy, _c              ; de -> _c
     ld      l, _a and 0xFF
-    call    _fmul
+    call    _fmul.hl
 ; fmul _a, _d, _f
     ld      iy, _d
     ld      e, _a and 0xFF
     ld      l, _f and 0xFF
-    call    _fmul
+    call    _fmul.hl
 ; fmul _d, _b, _point
     ld      iy, _b
     ld      e, _d and 0xFF
     ld      hl, _point
-    call    _fmul
+    call    _fmul.hl
 ; fsquare _b, _e
     ld      iy, _e
     ld      e, _b and 0xFF
-    ld      (_fmul.mulArg2SMC), iy
-    call    _fmul.start
+    call    _fmul.iy
 ; swap _a, _b
     pop     bc
     ld      e, _a and 0xFF
@@ -280,8 +276,7 @@ mainCalculationLoop:
 ; fsquare _c, _c
     ld      iy, _c
     ld      e, _c and 0xFF
-    ld      (_fmul.mulArg2SMC), iy
-    call    _fmul.start
+    call    _fmul.iy
     ld      a, (ix + tempVariables.mainLoopIndex)
     cp      a, 3
     jr      z, .continue2
@@ -291,7 +286,7 @@ mainCalculationLoop:
     ld      iy, _c
     ld      e, _c and 0xFF
     ld      l, _b and 0xFF
-    call    _fmul
+    call    _fmul.hl
 .continue2:
     dec     (ix + tempVariables.mainLoopIndex)
     jr      nz, .inverseLoop
@@ -301,7 +296,7 @@ mainCalculationLoop:
     ld      de, (ix + sparg1 + tempVariables.size)
     ld      iy, _a
     ld      l, _c and 0xFF
-    call    _fmul
+    call    _fmul.hl
 ; Out is now in the range [0, 2^256), which is slightly more than 2p. Subtract p and swap if necessary. Repeat this step
 ; to account for the possible output in the range of [2p, 2^256).
     call    .normalizeModP
@@ -398,10 +393,11 @@ _fmul:
 ;   BC = 0
 ;   DE = _product + INT_SIZE * 2 - 1
 ;   HL = out + INT_SIZE - 1
-
+.iy:
+    db      0xFD            ; ld hl, * -> ld iy, *
+.hl:
 ; Copy the input variable to the temporary storage
     ld      (_fmul.mulArg2SMC), hl
-.start:
     push    de
 ; Setup the product output
     ld      hl, _product
