@@ -1,8 +1,9 @@
 INT_SIZE = 32
 P_OFFSET = 19
+ALLOW_SMC = 1
 
-; Code size: 559 bytes
-; Relocation size: 1021 bytes
+; Code size: 569 bytes
+; Relocation size: 1023 bytes
 ; Data size: 320 bytes (+ padding)
 ; Read only data size: 64 bytes
 
@@ -16,6 +17,14 @@ end namespace
     section .text
     public _tls_x25519_secret
     public _tls_x25519_publickey
+
+macro store_arg_2
+if ALLOW_SMC
+    ld      (_fmul.mulArg2SMC), iy
+else
+    ld      (ix + mul.arg2), iy
+end if
+end macro
 
 arg1 := 3
 arg2 := 6
@@ -58,7 +67,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       216,825,386 cc      ; Assuming yield_fn = NULL
+; Timing current:       215,960,525 cc      ; Assuming yield_fn = NULL and SMC allowed
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -183,12 +192,12 @@ mainCalculationLoop:
     call    _fsubInline
 ; fsquare _d, _e
     ld      iy, _e              ; de -> _d
-    ld      (ix + mul.arg2), iy
+    store_arg_2
     call    _fmul.start
 ; fsquare _f, _a
     ld      e, _f and 0xFF
     ld      iy, _a
-    ld      (ix + mul.arg2), iy
+    store_arg_2
     call    _fmul.start
 ; fmul _a, _c, _a
     ld      iy, _c
@@ -214,7 +223,7 @@ mainCalculationLoop:
 ; fsquare _b, _a
     ld      iy, _a
     ld      e, _b and 0xFF
-    ld      (ix + mul.arg2), iy
+    store_arg_2
     call    _fmul.start
 ; copy _d, _c
     ld      e, _c and 0xFF
@@ -251,7 +260,7 @@ mainCalculationLoop:
 ; fsquare _b, _e
     ld      iy, _e
     ld      e, _b and 0xFF
-    ld      (ix + mul.arg2), iy
+    store_arg_2
     call    _fmul.start
 ; swap _a, _b
     pop     bc
@@ -283,7 +292,7 @@ mainCalculationLoop:
 ; fsquare _c, _c
     ld      iy, _c
     ld      e, _c and 0xFF
-    ld      (ix + mul.arg2), iy
+    store_arg_2
     call    _fmul.start
     ld      a, (ix + scalar.mainLoopIndex)
     cp      a, 3
@@ -403,7 +412,11 @@ _fmul:
 ;   HL = out + INT_SIZE - 1
 
 ; Copy the input variable to the temporary storage
+if ALLOW_SMC
+    ld      (_fmul.mulArg2SMC), hl
+else
     ld      (ix + mul.arg2), hl
+end if
 .start:
     push    de
 ; Setup the product output
@@ -421,7 +434,12 @@ _fmul:
     inc     hl
     push    hl
     ld      iyh, b
+if ALLOW_SMC
+.mulArg2SMC = $+1
+    ld      hl, 0
+else
     ld      hl, (ix + mul.arg2)
+end if
 ; First iteration
     ld      c, (hl)
     mlt     bc
