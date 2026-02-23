@@ -174,6 +174,40 @@ static bool test_vector_5(void) {
     return memcmp(shared_secret, expected, 32) == 0;
 }
 
+/**
+ * Test 6: RFC 7748 Section 5 - Test vectors
+ * Use wrong u-coordinate MSB set and verify it get resest internally
+ */
+static bool test_vector_6(void) {
+    uint8_t scalar[32] = {
+        0x4b, 0x66, 0xe9, 0xd4, 0xd1, 0xb4, 0x67, 0x3c,
+        0x5a, 0xd2, 0x26, 0x91, 0x95, 0x7d, 0x6a, 0xf5,
+        0xc1, 0x1b, 0x64, 0x21, 0xe0, 0xea, 0x01, 0xd4,
+        0x2c, 0xa4, 0x16, 0x9e, 0x79, 0x18, 0xba, 0x0d
+    };
+
+    const uint8_t u_coordinate[32] = {
+        0xe5, 0x21, 0x0f, 0x12, 0x78, 0x68, 0x11, 0xd3,
+        0xf4, 0xb7, 0x95, 0x9d, 0x05, 0x38, 0xae, 0x2c,
+        0x31, 0xdb, 0xe7, 0x10, 0x6f, 0xc0, 0x3c, 0x3e,
+        0xfc, 0x4c, 0xd5, 0x49, 0xc7, 0x15, 0xa4, 0x93
+    };
+
+    const uint8_t expected[32] = {
+        0x95, 0xcb, 0xde, 0x94, 0x76, 0xe8, 0x90, 0x7d,
+        0x7a, 0xad, 0xe4, 0x5c, 0xb4, 0xb8, 0x73, 0xf8,
+        0x8b, 0x59, 0x5a, 0x68, 0x79, 0x9f, 0xa1, 0x52,
+        0xe6, 0xf8, 0xf7, 0x64, 0x7a, 0xac, 0x79, 0x57
+    };
+
+    uint8_t shared_secret[32];
+
+    if (!tls_x25519_secret(shared_secret, scalar, u_coordinate, NULL, NULL))
+        return false;
+
+    return memcmp(shared_secret, expected, 32) == 0;
+}
+
 /* ========================================================================
  * TIMING CONSISTENCY TESTS
  * These tests use randomly generated keypairs to measure timing variance
@@ -561,7 +595,13 @@ int main(void) {
     printf("Test 5 (Clamp): %s\n", test5 ? "PASS" : "FAIL");
     os_GetKey();
 
-    bool all_pass = test1 && test2 && test3 && test4 && test5;
+    /* Test 6 */
+    os_ClrHome();
+    bool test6 = test_vector_6();
+    printf("Test 6 (PubKey MSB): %s\n", test6 ? "PASS" : "FAIL");
+    os_GetKey();
+
+    bool all_pass = test1 && test2 && test3 && test4 && test5 && test6;
 
     /* Timing consistency tests */
     if (all_pass)

@@ -1,9 +1,9 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 545 bytes
+; Code size: 559 bytes
 ; Relocation size: 1021 bytes
-; Data size: 288 bytes (+ padding)
+; Data size: 320 bytes (+ padding)
 ; Read only data size: 64 bytes
 
     assume adl=1
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       216,827,151 cc      ; Assuming yield_fn = NULL
+; Timing current:       216,825,386 cc      ; Assuming yield_fn = NULL
 tempVariables:
 scalar:
 scalar.mainLoopIndex := 0                   ; Main loop index
@@ -76,8 +76,16 @@ tempVariables.size := 4
     ld      de, ti.cursorImage
     ld      bc, reloc.data.len
     ldir
+; Copy point to actual point and edit byte 31
+    ld      de, _point
+    ld      hl, (ix + sparg3 + tempVariables.size)
+    ld      c, INT_SIZE - 1
+    ldir
+    ld      a, (hl)
+    and     a, 0x7F
+    ld      (de), a
+    inc     de
 ; Copy scalar to clamped, and edit byte 0 and byte 31
-    ld      de, _clamped
     ld      hl, (ix + sparg2 + tempVariables.size)
     ld      a, (hl)
     and     a, 0xF8
@@ -101,7 +109,7 @@ tempVariables.size := 4
     ld      c, INT_SIZE * 2 - 2 ; Clear _a and _c
     ld      hl, _a + 1
     ldir
-    ld      hl, (ix + sparg3 + tempVariables.size)    ; Copy point to b
+    ld      hl, _point      ; Copy point to b
     ld      c, INT_SIZE
     ldir
     ld      hl, _a          ; _d = _a
@@ -235,10 +243,10 @@ mainCalculationLoop:
     ld      e, _a and 0xFF
     ld      l, _f and 0xFF
     call    _fmul
-; fmul _d, _b, (ix + sparg3 + tempVariables.size)
+; fmul _d, _b, _point
     ld      iy, _b
     ld      e, _d and 0xFF
-    ld      hl, (ix + sparg3 + tempVariables.size)
+    ld      hl, _point
     call    _fmul
 ; fsquare _b, _e
     ld      iy, _e
@@ -624,8 +632,7 @@ reloc.base := ti.cursorImage
 reloc.offset := reloc.base - reloc.data
 
     section .data
-; Align _a to 0xXXXX00
-    db      ((0xE0 - (($ and 0xFF))) and 0xFF) dup 0
+    private _point
     private _clamped
     private _a
     private _b
@@ -635,6 +642,11 @@ reloc.offset := reloc.base - reloc.data
     private _f
     private _product
 
+; Align _a to 0xXXXX00
+    db      ((0xC0 - (($ and 0xFF))) and 0xFF) dup 0
+; Duplicate of the input point, but with msb reset
+_point:
+    rb      INT_SIZE
 ; Used for scalar
 _clamped:
     rb      INT_SIZE
@@ -655,7 +667,7 @@ _product:
     rb      INT_SIZE * 2
 
 
-repeat 1, x:$-_clamped
+repeat 1, x:$-_point
     display 'Data size: ', `x, ' bytes', 10
 end repeat
 
