@@ -1,9 +1,9 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 544 bytes
-; Relocation size: 1023 bytes
-; Data size: 320 bytes (+ padding)
+; Code size: 858 bytes
+; Relocation size: 947 bytes
+; Data size: 388 bytes (+ padding)
 ; Read only data size: 64 bytes
 
     assume adl=1
@@ -58,11 +58,12 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       215,944,984 cc      ; Assuming yield_fn = NULL
+; Timing current:       213,366,639 cc      ; Assuming yield_fn = NULL
 tempVariables:
 tempVariables.mainLoopIndex := 0                   ; Main loop index
+tempVariables.arg2 := 1
 
-tempVariables.size := 1
+tempVariables.size := 4
 
     push    ix
     ld      ix, -tempVariables.size
@@ -180,21 +181,23 @@ mainCalculationLoop:
     call    _fsubInline
 ; fsquare _d, _e
     ld      iy, _e              ; de -> _d
-    call    _fmul.iy
+    lea     hl, iy
+    call    _fmul
 ; fsquare _f, _a
     ld      e, _f and 0xFF
     ld      iy, _a
-    call    _fmul.iy
+    lea     hl, iy
+    call    _fmul
 ; fmul _a, _c, _a
     ld      iy, _c
     ld      e, _a and 0xFF
     ld      l, e
-    call    _fmul.hl
+    call    _fmul
 ; fmul _c, _b, _e
     ld      iy, _b
     ld      e, _c and 0xFF
     ld      l, _e and 0xFF
-    call    _fmul.hl
+    call    _fmul
 ; fadd _e, _a, _c
     ld      e, _e and 0xFF
     ld      l, _a and 0xFF
@@ -208,8 +211,9 @@ mainCalculationLoop:
     call    _fsubInline
 ; fsquare _b, _a
     ld      iy, _a
+    lea     hl, iy
     ld      e, _b and 0xFF
-    call    _fmul.iy
+    call    _fmul
 ; copy _d, _c
     ld      e, _c and 0xFF
     inc     hl                  ; hl -> _d
@@ -223,7 +227,7 @@ mainCalculationLoop:
     ld      iy, _c
     ld      e, _a and 0xFF
     ld      hl, _121665
-    call    _fmul.hl
+    call    _fmul
 ; fadd _a, _a, _d
     ld      e, _a and 0xFF
     ld      l, _d and 0xFF
@@ -231,21 +235,22 @@ mainCalculationLoop:
 ; fmul _c, _c, _a
     ld      iy, _c              ; de -> _c
     ld      l, _a and 0xFF
-    call    _fmul.hl
+    call    _fmul
 ; fmul _a, _d, _f
     ld      iy, _d
     ld      e, _a and 0xFF
     ld      l, _f and 0xFF
-    call    _fmul.hl
+    call    _fmul
 ; fmul _d, _b, _point
     ld      iy, _b
     ld      e, _d and 0xFF
     ld      hl, _point
-    call    _fmul.hl
+    call    _fmul
 ; fsquare _b, _e
     ld      iy, _e
     ld      e, _b and 0xFF
-    call    _fmul.iy
+    lea     hl, iy
+    call    _fmul
 ; swap _a, _b
     pop     bc
     ld      e, _a and 0xFF
@@ -276,7 +281,8 @@ mainCalculationLoop:
 ; fsquare _c, _c
     ld      iy, _c
     ld      e, _c and 0xFF
-    call    _fmul.iy
+    lea     hl, iy
+    call    _fmul
     ld      a, (ix + tempVariables.mainLoopIndex)
     cp      a, 3
     jr      z, .continue2
@@ -286,7 +292,7 @@ mainCalculationLoop:
     ld      iy, _c
     ld      e, _c and 0xFF
     ld      l, _b and 0xFF
-    call    _fmul.hl
+    call    _fmul
 .continue2:
     dec     (ix + tempVariables.mainLoopIndex)
     jr      nz, .inverseLoop
@@ -296,7 +302,7 @@ mainCalculationLoop:
     ld      de, (ix + sparg1 + tempVariables.size)
     ld      iy, _a
     ld      l, _c and 0xFF
-    call    _fmul.hl
+    call    _fmul
 ; Out is now in the range [0, 2^256), which is slightly more than 2p. Subtract p and swap if necessary. Repeat this step
 ; to account for the possible output in the range of [2p, 2^256).
     call    .normalizeModP
@@ -373,7 +379,16 @@ _fmul:
 ; Performs a multiplication between two big integers, and returns the result in mod 2p. The pseudocode for multiplying
 ; looks like this:
 ;  - Reset first 32 bytes of product outcome to zeroes
-;  - For each byte in input a, multiply the value with the entirety of b, and add to the product output at the correct offset.
+;  - Apply the Karatsuba algorithm for multiplying the two input big integers.
+;    Algorithm used from https://en.wikipedia.org/wiki/Karatsuba_algorithm#Basic_step:
+;     Step 1: Clear 64 + 34 bytes of _product and _z3 with zeroes
+;     Step 2: Multiply low(in1) with low(in2) and store to _product
+;     Step 3: Multiply high(in1) with high(in2) and store to _product + 32
+;     Step 4: Add low(in1) and high(in2) and store to _z3a
+;     Step 5: Add high(in1) and low(in2) and store to _z3b
+;     Step 6: Multiply _z3a and _z3b and store + add to _z3
+;     Step 7: Subtract _product and _product + 32 from z3
+;     Step 8: Add _z3 to _product + 16
 ;  - Now product is a 64-byte value, i.e.:
 ;      product = t_0 * 2^0 + t_1 * 2^8 + ... + t_31 * 2^248 + t_32 * 2^256 + t_33 * 2^264 + ... + t_63 * 2^504
 ;              = t_0 * 2^0 + t_1 * 2^8 + ... + t_31 * 2^248 + t_32 * 2^0 * (2p + 38) + t_33 * 2^1 * (2p + 38) + ... + t_63 * 2^248 * (2p + 38)
@@ -393,72 +408,78 @@ _fmul:
 ;   BC = 0
 ;   DE = _product + INT_SIZE * 2 - 1
 ;   HL = out + INT_SIZE - 1
-.iy:
-    db      0xFD            ; ld hl, * -> ld iy, *
-.hl:
-; Copy the input variable to the temporary storage
-    ld      (_fmul.mulArg2SMC), hl
+    ld      (.arg1), iy
+    ld      (ix + tempVariables.arg2), hl
     push    de
-; Setup the product output
+; Setup the product and z3 output
     ld      hl, _product
-    ld      c, INT_SIZE - 1
+    ld      c, INT_SIZE * 2 - 1 + 34
     ld      (hl), b
     ld      de, _product + 1
     ldir
-; Also setup the other variables
+; Perform the first multiplication: low(in1) * low(in2)
+    ld      de, _product
     lea     hl, iy
-    ld      e, _product and 0xFF
-; Within a loop, get a single byte from a, and multiply it with the entirety of b, adding it to the product immediately
-.mainLoop:
-    ld      b, (hl)         ; de -> output pointer, hl -> a + index, b -> a[index]
-    inc     hl
-    push    hl
-    ld      iyh, b
-.mulArg2SMC = $+1
+    ld      bc, (ix + tempVariables.arg2)
+    call    _fmul16Improved
+; Perform the next multiplication: high(in1) * high(in2)
+    ld      iy, (ix + tempVariables.arg2)
+    lea     bc, iy + (INT_SIZE / 2)
+    ld      e, (_product + INT_SIZE) and 0xFF
+    call    _fmul16Improved
+; Add low(in1) and high(in1) and store to z3a
+    ld      de, _z3a
+.arg1 = $+1
     ld      hl, 0
-; First iteration
-    ld      c, (hl)
-    mlt     bc
-    ld      a, (de)         ; Add c to (de)
-    add     a, c
+    ld      bc, 16
+    ldir
+    ld      e, _z3a and 0xFF
+    call    _faddImprovedInline
+; Add low(in2) to high(in2) and store to z3b
+    ld      de, _z3b
+    ld      hl, (ix + tempVariables.arg2)
+    ld      bc, 16
+    ldir
+    ld      e, _z3b and 0xFF
+    call    _faddImprovedInline
+; Multiply z3a with z3b and store to z3
+    ld      hl, _z3a
+    ld      de, _z3
+    ld      bc, _z3b
+    call    _fmul17Improved
+; Subtract _product from z3
+    ld      de, _z3
+    ld      hl, _product
+    call    _fsubImprovedInline
+; Subtract _product + 32 from z3
+    ld      de, _z3
+    ld      hl, _product + 32
+    call    _fsubImprovedInline
+; Add z3 to _product + 16
+    ld      de, _product + 16
+    ld      hl, _z3
+    xor     a, a
+    ld      b, 34
+.loop:
+    ld      a, (de)
+    adc     a, (hl)
     ld      (de), a
-    ld      a, b
-    inc     de
     inc     hl
-; Other iterations
-repeat INT_SIZE - 1
-    ld      c, (hl)
-    ld      b, iyh
-    mlt     bc
+    inc     de
+    djnz    .loop
+    ld      c, 0
+    ld      b, 14
+.loop2:
+    ld      a, (de)
     adc     a, c
-    ld      c, a            ; Temporarily save a
-    adc     a, b            ; b + cf -> b
-    sub     a, c
-    ld      b, a
-    ld      a, (de)         ; Restore a and add to (de)
-    add     a, c
     ld      (de), a
-    ld      a, b
     inc     de
-if % <> %%
-    inc     hl
-end if
-end repeat
-; Add the last carry byte to the product. Since we work from low to high indexes, this last carry byte is guaranteed to
-; not overlap with the previous product result, thus storing it directly works properly.
-    adc     a, 0
-    ld      (de), a
-; Continue with the main loop
-    ld      a, -INT_SIZE + 1
-    add     a, e
-    ld      e, a
-    pop     hl
-    sub     a, (_product + INT_SIZE) and 0xFF
-    jp      nz, .mainLoop
+    djnz    .loop2
 
 ; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and add to product + 32 directly
-    ex      de, hl          ; hl -> _product + INT_SIZE
+    ld      hl, _product + INT_SIZE
     ld      de, _product
+    xor     a, a
 .addMul38Loop:
 repeat 8
     ld      c, (hl)
@@ -603,9 +624,157 @@ end repeat
     ld      (hl), a
     ret
 
+_faddImprovedInline:
+; Inputs:
+;   DE = in1
+;   HL = in2
+    xor     a, a
+    ld      b, 16
+.loop:
+    ld      a, (de)
+    adc     a, (hl)
+    ld      (de), a
+    inc     hl
+    inc     de
+    djnz    .loop
+    sbc     a, a
+    and     a, 1
+    ld      (de), a
+    ret
+
+_fsubImprovedInline:
+; Inputs:
+;   DE = in1
+;   HL = in2
+    xor     a, a
+    ld      b, 32
+.loop1:
+    ld      a, (de)
+    sbc     a, (hl)
+    ld      (de), a
+    inc     hl
+    inc     de
+    djnz    .loop1
+    ld      a, (de)
+    sbc     a, b
+    ld      (de), a
+    inc     de
+    ld      a, (de)
+    sbc     a, b
+    ld      (de), a
+    ret
+
+_fmul16Improved:
+; Calculates the product of 2 16-byte integers, resulting in a 32-byte integer
+; Inputs:
+;   HL = in1
+;   DE = out
+;   BC = in2
+; Outputs:
+;   HL = in1 + 16
+;   DE = out + 16
+    ld      (.mul16Arg2SMC), bc
+    ld      iyl, 16
+.mainLoop:
+    ld      b, (hl)
+    inc     hl
+    push    hl
+    ld      iyh, b
+.mul16Arg2SMC = $+1
+    ld      hl, 0           ; hl -> in2
+; First iteration
+    ld      c, (hl)
+    mlt     bc
+    ld      a, (de)         ; Add c to (de)
+    add     a, c
+    ld      (de), a
+    ld      a, b
+    inc     de
+    inc     hl
+; Other iterations
+repeat 15
+    ld      c, (hl)
+    ld      b, iyh
+    mlt     bc
+    adc     a, c
+    ld      c, a            ; Temporarily save a
+    adc     a, b            ; b + cf -> b
+    sub     a, c
+    ld      b, a
+    ld      a, (de)         ; Restore a and add to (de)
+    add     a, c
+    ld      (de), a
+    ld      a, b
+    inc     de
+    inc     hl
+end repeat
+    adc     a, 0
+    ld      (de), a
+    ld      hl, -15
+    add     hl, de
+    ex      de, hl
+    pop     hl
+    dec     iyl
+    jp      nz, .mainLoop
+    ret
+
     private	reloc_rodata
 load reloc_rodata: $-$$ from $$
 end virtual
+
+_fmul17Improved:
+; Calculates the product of 2 17-byte integers, resulting in a 34-byte integer
+; Inputs:
+;   HL = in1
+;   DE = out
+;   BC = in2
+; Outputs:
+;   HL = in1 + 17
+;   DE = out + 17
+    ld      (.mul17Arg2SMC), bc
+    ld      iyl, 17
+.mainLoop:
+    ld      b, (hl)
+    inc     hl
+    push    hl
+    ld      iyh, b
+.mul17Arg2SMC = $+1
+    ld      hl, 0           ; hl -> in2
+; First iteration
+    ld      c, (hl)
+    mlt     bc
+    ld      a, (de)         ; Add c to (de)
+    add     a, c
+    ld      (de), a
+    ld      a, b
+    inc     de
+    inc     hl
+; Other iterations
+repeat 16
+    ld      c, (hl)
+    ld      b, iyh
+    mlt     bc
+    adc     a, c
+    ld      c, a            ; Temporarily save a
+    adc     a, b            ; b + cf -> b
+    sub     a, c
+    ld      b, a
+    ld      a, (de)         ; Restore a and add to (de)
+    add     a, c
+    ld      (de), a
+    ld      a, b
+    inc     de
+    inc     hl
+end repeat
+    adc     a, 0
+    ld      (de), a
+    ld      hl, -16
+    add     hl, de
+    ex      de, hl
+    pop     hl
+    dec     iyl
+    jp      nz, .mainLoop
+    ret
 
 
 repeat 1, x:$-_tls_x25519_publickey
@@ -635,6 +804,9 @@ reloc.offset := reloc.base - reloc.data
     private _e
     private _f
     private _product
+    private _z3a
+    private _z3b
+    private _z3
 
 ; Align _a to 0xXXXX00
     db      ((0xC0 - (($ and 0xFF))) and 0xFF) dup 0
@@ -659,6 +831,12 @@ _f:
 ; Used for multiplication
 _product:
     rb      INT_SIZE * 2
+_z3:
+    rb      34
+_z3a:
+    rb      17
+_z3b:
+    rb      17
 
 
 repeat 1, x:$-_point
