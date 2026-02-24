@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 554 bytes
-; Relocation size: 1003 bytes
+; Relocation size: 1023 bytes
 ; Data size: 388 bytes (+ padding)
 ; Read only data size: 64 bytes
 
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       197,911,857 cc      ; Assuming yield_fn = NULL
+; Timing current:       197,178,317 cc      ; Assuming yield_fn = NULL
 tempVariables:
 tempVariables.mainLoopIndex := 0                   ; Main loop index
 tempVariables.arg2 := 1
@@ -645,18 +645,15 @@ _faddImprovedInline:
 ;   DE = in1 + 17
 ;   HL = in1 + 16
     xor     a, a
-    ld      b, 8
+    ld      b, 4
 .loop:
+repeat 4
     ld      a, (de)
     adc     a, (hl)
     ld      (de), a
     inc     hl
     inc     de
-    ld      a, (de)
-    adc     a, (hl)
-    ld      (de), a
-    inc     hl
-    inc     de
+end repeat
     djnz    .loop
     sbc     a, a
     and     a, 1
@@ -672,18 +669,15 @@ _fsubImprovedInline:
 ;   DE = in1 + 34
 ;   HL = in1 + 32
     xor     a, a
-    ld      b, 16
+    ld      b, 8
 .loop1:
+repeat 4
     ld      a, (de)
     sbc     a, (hl)
     ld      (de), a
     inc     hl
     inc     de
-    ld      a, (de)
-    sbc     a, (hl)
-    ld      (de), a
-    inc     hl
-    inc     de
+end repeat
     djnz    .loop1
     ld      a, (de)
     sbc     a, b
