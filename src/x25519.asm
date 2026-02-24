@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 853 bytes
-; Relocation size: 963 bytes
+; Code size: 554 bytes
+; Relocation size: 1003 bytes
 ; Data size: 388 bytes (+ padding)
 ; Read only data size: 64 bytes
 
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       211,133,102 cc      ; Assuming yield_fn = NULL
+; Timing current:       197,911,857 cc      ; Assuming yield_fn = NULL
 tempVariables:
 tempVariables.mainLoopIndex := 0                   ; Main loop index
 tempVariables.arg2 := 1
@@ -421,11 +421,13 @@ _fmul:
     ld      de, _product
     lea     hl, iy
     ld      bc, (ix + tempVariables.arg2)
+    ld      a, 16
     call    _fmul16Improved
 ; Perform the next multiplication: high(in1) * high(in2)
     ld      iy, (ix + tempVariables.arg2)
     lea     bc, iy + (INT_SIZE / 2)
     ld      e, (_product + INT_SIZE) and 0xFF
+    ld      a, 16
     call    _fmul16Improved
 ; Add low(in1) and high(in1) and store to z3a
     ld      de, _z3a
@@ -446,7 +448,8 @@ _fmul:
     ld      hl, _z3a
     ld      de, _z3
     ld      bc, _z3b
-    call    _fmul17Improved
+    ld      a, 17
+    call    _fmul16Improved
 ; Subtract _product from z3
     ld      de, _z3
     ld      hl, _product
@@ -694,6 +697,7 @@ _fsubImprovedInline:
 _fmul16Improved:
 ; Calculates the product of 2 16-byte integers, resulting in a 32-byte integer
 ; Inputs:
+;    A = count (16 or 17)
 ;   HL = in1
 ;   DE = out
 ;   BC = in2
@@ -701,7 +705,16 @@ _fmul16Improved:
 ;   HL = in1 + 16
 ;   DE = out + 16
     ld      (.mul16Arg2SMC), bc
-    ld      iyl, 16
+    ld      iyl, a
+    neg
+    inc     a
+    ld      (.offset), a    ; 16 -> -15, 17 -> -16
+    add     a, 16
+    add     a, a
+    add     a, a
+    add     a, a
+    add     a, a
+    ld      (.jumpOffset), a
 .mainLoop:
     ld      b, (hl)
     inc     hl
@@ -719,64 +732,8 @@ _fmul16Improved:
     inc     de
     inc     hl
 ; Other iterations
-repeat 15
-    ld      c, (hl)
-    ld      b, iyh
-    mlt     bc
-    adc     a, c
-    ld      c, a            ; Temporarily save a
-    adc     a, b            ; b + cf -> b
-    sub     a, c
-    ld      b, a
-    ld      a, (de)         ; Restore a and add to (de)
-    add     a, c
-    ld      (de), a
-    ld      a, b
-    inc     de
-    inc     hl
-end repeat
-    adc     a, 0
-    ld      (de), a
-    ld      hl, -15
-    add     hl, de
-    ex      de, hl
-    pop     hl
-    dec     iyl
-    jp      nz, .mainLoop
-    ret
-
-    private	reloc_rodata
-load reloc_rodata: $-$$ from $$
-end virtual
-
-_fmul17Improved:
-; Calculates the product of 2 17-byte integers, resulting in a 34-byte integer
-; Inputs:
-;   HL = in1
-;   DE = out
-;   BC = in2
-; Outputs:
-;   HL = in1 + 17
-;   DE = out + 17
-    ld      (.mul17Arg2SMC), bc
-    ld      iyl, 17
-.mainLoop:
-    ld      b, (hl)
-    inc     hl
-    push    hl
-    ld      iyh, b
-.mul17Arg2SMC = $+1
-    ld      hl, 0           ; hl -> in2
-; First iteration
-    ld      c, (hl)
-    mlt     bc
-    ld      a, (de)         ; Add c to (de)
-    add     a, c
-    ld      (de), a
-    ld      a, b
-    inc     de
-    inc     hl
-; Other iterations
+.jumpOffset = $+1
+    jr      $+2             ; Skips one iteration if necessary
 repeat 16
     ld      c, (hl)
     ld      b, iyh
@@ -795,13 +752,18 @@ repeat 16
 end repeat
     adc     a, 0
     ld      (de), a
-    ld      hl, -16
+.offset = $+1
+    ld      hl, -15
     add     hl, de
     ex      de, hl
     pop     hl
     dec     iyl
     jp      nz, .mainLoop
     ret
+
+    private	reloc_rodata
+load reloc_rodata: $-$$ from $$
+end virtual
 
 
 repeat 1, x:$-_tls_x25519_publickey
