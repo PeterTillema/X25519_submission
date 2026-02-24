@@ -165,55 +165,55 @@ mainCalculationLoop:
     ld      bc, INT_SIZE
     ldir
     ld      e, _e and 0xFF      ; hl -> _c
-    call    _faddInline
+    call    _BigIntAdd
 ; fsub _a, _a, _c
     ld      e, _a and 0xFF
     ld      l, _c and 0xFF
-    call    _fsubInline
+    call    _BigIntSub
 ; fadd _c, _b, _d
     ld      l, _b and 0xFF      ; de -> _c
     ld      c, INT_SIZE
     ldir
     ld      e, _c and 0xFF      ; hl -> _d
-    call    _faddInline
+    call    _BigIntAdd
 ; fsub _b, _b, _d
     ld      l, _d and 0xFF      ; de -> _b
-    call    _fsubInline
+    call    _BigIntSub
 ; fsquare _d, _e
     ld      iy, _e              ; de -> _d
     ld      l, _e and 0xFF
-    call    _fmul
+    call    _BigIntMul
 ; fsquare _f, _a
     ld      e, _f and 0xFF
     ld      iy, _a
     ld      l, _a and 0xFF
-    call    _fmul
+    call    _BigIntMul
 ; fmul _a, _c, _a
     ld      iy, _c
     ld      e, _a and 0xFF
     ld      l, e
-    call    _fmul
+    call    _BigIntMul
 ; fmul _c, _b, _e
     ld      iy, _b
     ld      e, _c and 0xFF
     ld      l, _e and 0xFF
-    call    _fmul
+    call    _BigIntMul
 ; fadd _e, _a, _c
     ld      e, _e and 0xFF
     ld      l, _a and 0xFF
     ld      c, INT_SIZE
     ldir
     ld      e, _e and 0xFF      ; hl -> _c
-    call    _faddInline
+    call    _BigIntAdd
 ; fsub _a, _a, _c
     ld      e, _a and 0xFF
     ld      l, _c and 0xFF
-    call    _fsubInline
+    call    _BigIntSub
 ; fsquare _b, _a
     ld      iy, _a
     ld      l, _a and 0xFF
     ld      e, _b and 0xFF
-    call    _fmul
+    call    _BigIntMul
 ; copy _d, _c
     ld      e, _c and 0xFF
     inc     hl                  ; hl -> _d
@@ -222,35 +222,35 @@ mainCalculationLoop:
 ; fsub _c, _c, _f
     ld      e, _c and 0xFF
     ld      l, _f and 0xFF
-    call    _fsubInline
+    call    _BigIntSub
 ; fmul _a, _c, _121665
     ld      iy, _c
     ld      e, _a and 0xFF
     ld      hl, _121665
-    call    _fmul
+    call    _BigIntMul
 ; fadd _a, _a, _d
     ld      e, _a and 0xFF
     ld      l, _d and 0xFF
-    call    _faddInline
+    call    _BigIntAdd
 ; fmul _c, _c, _a
     ld      iy, _c              ; de -> _c
     ld      l, _a and 0xFF
-    call    _fmul
+    call    _BigIntMul
 ; fmul _a, _d, _f
     ld      iy, _d
     ld      e, _a and 0xFF
     ld      l, _f and 0xFF
-    call    _fmul
+    call    _BigIntMul
 ; fmul _d, _b, _point
     ld      iy, _b
     ld      e, _d and 0xFF
     ld      hl, _point
-    call    _fmul
+    call    _BigIntMul
 ; fsquare _b, _e
     ld      iy, _e
     ld      e, _b and 0xFF
     ld      l, _e and 0xFF
-    call    _fmul
+    call    _BigIntMul
 ; swap _a, _b
     pop     bc
     ld      e, _a and 0xFF
@@ -282,7 +282,7 @@ mainCalculationLoop:
     ld      iy, _c
     ld      e, _c and 0xFF
     ld      l, _c and 0xFF
-    call    _fmul
+    call    _BigIntMul
     ld      a, (ix + tempVariables.mainLoopIndex)
     cp      a, 3
     jr      z, .continue2
@@ -292,7 +292,7 @@ mainCalculationLoop:
     ld      iy, _c
     ld      e, _c and 0xFF
     ld      l, _b and 0xFF
-    call    _fmul
+    call    _BigIntMul
 .continue2:
     dec     (ix + tempVariables.mainLoopIndex)
     jr      nz, .inverseLoop
@@ -302,7 +302,7 @@ mainCalculationLoop:
     ld      de, (ix + sparg1 + tempVariables.size)
     ld      iy, _a
     ld      l, _c and 0xFF
-    call    _fmul
+    call    _BigIntMul
 ; Out is now in the range [0, 2^256), which is slightly more than 2p. Subtract p and swap if necessary. Repeat this step
 ; to account for the possible output in the range of [2p, 2^256).
     call    .normalizeModP
@@ -375,7 +375,7 @@ end repeat
     jr      nz, .swapLoop
     ret
 
-_fmul:
+_BigIntMul:
 ; Performs a multiplication between two big integers, and returns the result in mod 2p. The pseudocode for multiplying
 ; looks like this:
 ;  - Reset first 32 bytes of product outcome to zeroes
@@ -422,13 +422,13 @@ _fmul:
     lea     hl, iy
     ld      bc, (ix + tempVariables.arg2)
     ld      a, 16
-    call    _fmul16Improved
+    call    _BigInt16Mul
 ; Perform the next multiplication: high(in1) * high(in2)
     ld      iy, (ix + tempVariables.arg2)
     lea     bc, iy + (INT_SIZE / 2)
     ld      e, (_product + INT_SIZE) and 0xFF
     ld      a, 16
-    call    _fmul16Improved
+    call    _BigInt16Mul
 ; Add low(in1) and high(in1) and store to z3a
     ld      de, _z3a
 .arg1 = $+1
@@ -436,28 +436,28 @@ _fmul:
     ld      bc, 16
     ldir
     ld      e, _z3a and 0xFF
-    call    _faddImprovedInline
+    call    _BigInt16AddInline
 ; Add low(in2) to high(in2) and store to z3b
     ld      de, _z3b
     ld      hl, (ix + tempVariables.arg2)
     ld      c, 16
     ldir
     ld      e, _z3b and 0xFF
-    call    _faddImprovedInline
+    call    _BigInt16AddInline
 ; Multiply z3a with z3b and store to z3
     ld      hl, _z3a
     ld      de, _z3
     ld      bc, _z3b
     ld      a, 17
-    call    _fmul16Improved
+    call    _BigInt16Mul
 ; Subtract _product from z3
     ld      de, _z3
     ld      hl, _product
-    call    _fsubImprovedInline
+    call    _BigInt32SubInline
 ; Subtract _product + 32 from z3
     ld      de, _z3
     ld      hl, _product + 32
-    call    _fsubImprovedInline
+    call    _BigInt32SubInline
 ; Add z3 to _product + 16
     ld      de, _product + 16
     ld      hl, _z3
@@ -541,7 +541,7 @@ end repeat
     djnz    .addLoop
     ret
 
-_faddInline:
+_BigIntAdd:
 ; Performs an inline addition between two big integers mod 2p, and returns the result in the first num with mod 2p.
 ; Inputs:
 ;   cf = reset
@@ -586,7 +586,7 @@ end repeat
     ld      (hl), a
     ret
 
-_fsubInline:
+_BigIntSub:
 ; Performs an inline subtraction between two big integers mod 2p, and returns the result in the first num in mod 2p again.
 ; Inputs:
 ;   cf = reset
@@ -636,7 +636,7 @@ end repeat
     ld      (hl), a
     ret
 
-_faddImprovedInline:
+_BigInt16AddInline:
 ; Inputs:
 ;   DE = in1
 ;   HL = in2
@@ -660,7 +660,7 @@ end repeat
     ld      (de), a
     ret
 
-_fsubImprovedInline:
+_BigInt32SubInline:
 ; Inputs:
 ;   DE = in1
 ;   HL = in2
@@ -688,7 +688,7 @@ end repeat
     ld      (de), a
     ret
 
-_fmul16Improved:
+_BigInt16Mul:
 ; Calculates the product of 2 16-byte integers, resulting in a 32-byte integer
 ; Inputs:
 ;    A = count (16 or 17)
