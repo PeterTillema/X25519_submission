@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 554 bytes
-; Relocation size: 1023 bytes
+; Relocation size: 1013 bytes
 ; Data size: 388 bytes (+ padding)
 ; Read only data size: 64 bytes
 
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       197,178,317 cc      ; Assuming yield_fn = NULL
+; Timing current:       196,750,269 cc      ; Assuming yield_fn = NULL
 tempVariables:
 tempVariables.mainLoopIndex := 0                   ; Main loop index
 tempVariables.arg2 := 1
@@ -158,7 +158,7 @@ mainCalculationLoop:
     ld      de, _a
     ld      hl, _b
     ld      iyh, INT_SIZE / 4 * 2
-    call    _swap
+    call    _BigIntSwap
 ; fadd _e, _a, _c
     ex      de, hl              ; de -> _e
     ld      l, _a and 0xFF
@@ -256,7 +256,7 @@ mainCalculationLoop:
     ld      e, _a and 0xFF
     ld      l, _b and 0xFF
     ld      iyh, INT_SIZE / 4 * 2
-    call    _swap
+    call    _BigIntSwap
 
 ; Get to the next bit
     pop     de              ; de -> clamped pointer
@@ -337,13 +337,13 @@ mainCalculationLoop:
     add     hl, bc
     ld      c, a
     ld      iyh, INT_SIZE / 4
-    jp      _swap
+    jp      _BigIntSwap
 
 _jumpHL:
     jp      (hl)
 
 virtual at ti.cursorImage
-_swap:
+_BigIntSwap:
 ; Eventually swaps 2 big integers based on the carry flag. Performs the swap in constant time to prevent timing attacks
 ; Inputs:
 ;    C = swap ? 0xFF : 0
@@ -421,13 +421,11 @@ _BigIntMul:
     ld      de, _product
     lea     hl, iy
     ld      bc, (ix + tempVariables.arg2)
-    ld      a, INT_SIZE / 2
     call    _BigInt16Mul
 ; Perform the next multiplication: high(in1) * high(in2)
     ld      iy, (ix + tempVariables.arg2)
     lea     bc, iy + (INT_SIZE / 2)
     ld      e, (_product + INT_SIZE) and 0xFF
-    ld      a, INT_SIZE / 2
     call    _BigInt16Mul
 ; Add low(in1) and high(in1) and store to z3a
     ld      de, _z3a
@@ -443,49 +441,41 @@ _BigIntMul:
     ld      c, INT_SIZE / 2
     ldir
     ld      e, _z3b and 0xFF
-    call    _BigInt16AddInline
+    call    _BigInt16AddInline + 1
 ; Multiply z3a with z3b and store to z3
     ld      hl, _z3a
     ld      de, _z3
     ld      bc, _z3b
     ld      a, INT_SIZE / 2 + 1
-    call    _BigInt16Mul
+    call    _BigInt16Mul.start
 ; Subtract _product from z3
-    ld      de, _z3
     ld      hl, _product
     call    _BigInt32SubInline
 ; Subtract _product + 32 from z3
-    ld      de, _z3
     ld      hl, _product + INT_SIZE
-    call    _BigInt32SubInline
+    call    _BigInt32SubInline + 1
 ; Add z3 to _product + 16
     ld      de, _product + INT_SIZE / 2
     ld      hl, _z3
-    xor     a, a
     ld      b, (INT_SIZE + 2) / 2
 .loop1:
+repeat 2
     ld      a, (de)
     adc     a, (hl)
     ld      (de), a
     inc     hl
     inc     de
-    ld      a, (de)
-    adc     a, (hl)
-    ld      (de), a
-    inc     hl
-    inc     de
+end repeat
     djnz    .loop1
     ld      c, b
     ld      b, 7
 .loop2:
+repeat 2
     ld      a, (de)
     adc     a, c
     ld      (de), a
     inc     de
-    ld      a, (de)
-    adc     a, c
-    ld      (de), a
-    inc     de
+end repeat
     djnz    .loop2
 
 ; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and add to product + 32 directly
@@ -493,7 +483,7 @@ _BigIntMul:
     ld      de, _product
     xor     a, a
 .addMul38Loop:
-repeat 8
+repeat 4
     ld      c, (hl)
     ld      b, 2 * P_OFFSET
     mlt     bc
@@ -512,7 +502,7 @@ if % <> %%
 end if
 end repeat
     inc     l               ; l = 0 -> stop, since then it's _product + INT_SIZE * 2 = XXXX00
-    jp      nz, .addMul38Loop
+    jr      nz, .addMul38Loop
 
 ; Propagate the last carry byte back to the first value and store to out directly
     adc     a, l
@@ -571,9 +561,9 @@ end repeat
     add     a, (hl)
     ld      (hl), a
     ld      c, b
-    ld      b, (INT_SIZE - 2) / 10
+    ld      b, (INT_SIZE - 2) / 5
 .addLoop2:
-repeat 10
+repeat 5
     inc     hl
     ld      a, (hl)
     adc     a, c
@@ -645,9 +635,9 @@ _BigInt16AddInline:
 ;   DE = in1 + 17
 ;   HL = in1 + 16
     xor     a, a
-    ld      b, 4
+    ld      b, 2
 .loop:
-repeat 4
+repeat 8
     ld      a, (de)
     adc     a, (hl)
     ld      (de), a
@@ -655,23 +645,23 @@ repeat 4
     inc     de
 end repeat
     djnz    .loop
-    sbc     a, a
-    and     a, 1
+    ld      a, b
+    adc     a, b
     ld      (de), a
     ret
 
 _BigInt32SubInline:
 ; Inputs:
-;   DE = in1
 ;   HL = in2
 ; Outputs:
 ;    B = 0
 ;   DE = in1 + 34
 ;   HL = in1 + 32
     xor     a, a
-    ld      b, 8
+    ld      de, _z3
+    ld      b, 2
 .loop1:
-repeat 4
+repeat 16
     ld      a, (de)
     sbc     a, (hl)
     ld      (de), a
@@ -698,6 +688,8 @@ _BigInt16Mul:
 ; Outputs:
 ;   HL = in1 + 16
 ;   DE = out + 16
+    ld      a, 16
+.start:
     ld      (.mul16Arg2SMC), bc
     ld      iyl, a
     neg
