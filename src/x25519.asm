@@ -413,7 +413,7 @@ _BigIntMul:
     push    de
 ; Setup the product and z3 output
     ld      hl, _product
-    ld      c, INT_SIZE * 2 - 1 + 34
+    ld      c, (INT_SIZE * 2 - 1) + (INT_SIZE + 2)
     ld      (hl), b
     ld      de, _product + 1
     ldir
@@ -421,26 +421,26 @@ _BigIntMul:
     ld      de, _product
     lea     hl, iy
     ld      bc, (ix + tempVariables.arg2)
-    ld      a, 16
+    ld      a, INT_SIZE / 2
     call    _BigInt16Mul
 ; Perform the next multiplication: high(in1) * high(in2)
     ld      iy, (ix + tempVariables.arg2)
     lea     bc, iy + (INT_SIZE / 2)
     ld      e, (_product + INT_SIZE) and 0xFF
-    ld      a, 16
+    ld      a, INT_SIZE / 2
     call    _BigInt16Mul
 ; Add low(in1) and high(in1) and store to z3a
     ld      de, _z3a
 .arg1 = $+1
     ld      hl, 0
-    ld      bc, 16
+    ld      bc, INT_SIZE / 2
     ldir
     ld      e, _z3a and 0xFF
     call    _BigInt16AddInline
 ; Add low(in2) to high(in2) and store to z3b
     ld      de, _z3b
     ld      hl, (ix + tempVariables.arg2)
-    ld      c, 16
+    ld      c, INT_SIZE / 2
     ldir
     ld      e, _z3b and 0xFF
     call    _BigInt16AddInline
@@ -448,7 +448,7 @@ _BigIntMul:
     ld      hl, _z3a
     ld      de, _z3
     ld      bc, _z3b
-    ld      a, 17
+    ld      a, INT_SIZE / 2 + 1
     call    _BigInt16Mul
 ; Subtract _product from z3
     ld      de, _z3
@@ -456,13 +456,13 @@ _BigIntMul:
     call    _BigInt32SubInline
 ; Subtract _product + 32 from z3
     ld      de, _z3
-    ld      hl, _product + 32
+    ld      hl, _product + INT_SIZE
     call    _BigInt32SubInline
 ; Add z3 to _product + 16
-    ld      de, _product + 16
+    ld      de, _product + INT_SIZE / 2
     ld      hl, _z3
     xor     a, a
-    ld      b, 34 / 2
+    ld      b, (INT_SIZE + 2) / 2
 .loop1:
     ld      a, (de)
     adc     a, (hl)
@@ -476,7 +476,7 @@ _BigIntMul:
     inc     de
     djnz    .loop1
     ld      c, b
-    ld      b, 14 / 2
+    ld      b, 7
 .loop2:
     ld      a, (de)
     adc     a, c
