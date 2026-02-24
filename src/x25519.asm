@@ -1,8 +1,8 @@
 INT_SIZE = 32
 P_OFFSET = 19
 
-; Code size: 858 bytes
-; Relocation size: 947 bytes
+; Code size: 853 bytes
+; Relocation size: 963 bytes
 ; Data size: 388 bytes (+ padding)
 ; Read only data size: 64 bytes
 
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       213,366,639 cc      ; Assuming yield_fn = NULL
+; Timing current:       211,133,102 cc      ; Assuming yield_fn = NULL
 tempVariables:
 tempVariables.mainLoopIndex := 0                   ; Main loop index
 tempVariables.arg2 := 1
@@ -181,12 +181,12 @@ mainCalculationLoop:
     call    _fsubInline
 ; fsquare _d, _e
     ld      iy, _e              ; de -> _d
-    lea     hl, iy
+    ld      l, _e and 0xFF
     call    _fmul
 ; fsquare _f, _a
     ld      e, _f and 0xFF
     ld      iy, _a
-    lea     hl, iy
+    ld      l, _a and 0xFF
     call    _fmul
 ; fmul _a, _c, _a
     ld      iy, _c
@@ -211,7 +211,7 @@ mainCalculationLoop:
     call    _fsubInline
 ; fsquare _b, _a
     ld      iy, _a
-    lea     hl, iy
+    ld      l, _a and 0xFF
     ld      e, _b and 0xFF
     call    _fmul
 ; copy _d, _c
@@ -249,7 +249,7 @@ mainCalculationLoop:
 ; fsquare _b, _e
     ld      iy, _e
     ld      e, _b and 0xFF
-    lea     hl, iy
+    ld      l, _e and 0xFF
     call    _fmul
 ; swap _a, _b
     pop     bc
@@ -281,7 +281,7 @@ mainCalculationLoop:
 ; fsquare _c, _c
     ld      iy, _c
     ld      e, _c and 0xFF
-    lea     hl, iy
+    ld      l, _c and 0xFF
     call    _fmul
     ld      a, (ix + tempVariables.mainLoopIndex)
     cp      a, 3
@@ -438,7 +438,7 @@ _fmul:
 ; Add low(in2) to high(in2) and store to z3b
     ld      de, _z3b
     ld      hl, (ix + tempVariables.arg2)
-    ld      bc, 16
+    ld      c, 16
     ldir
     ld      e, _z3b and 0xFF
     call    _faddImprovedInline
@@ -459,17 +459,26 @@ _fmul:
     ld      de, _product + 16
     ld      hl, _z3
     xor     a, a
-    ld      b, 34
-.loop:
+    ld      b, 34 / 2
+.loop1:
     ld      a, (de)
     adc     a, (hl)
     ld      (de), a
     inc     hl
     inc     de
-    djnz    .loop
-    ld      c, 0
-    ld      b, 14
+    ld      a, (de)
+    adc     a, (hl)
+    ld      (de), a
+    inc     hl
+    inc     de
+    djnz    .loop1
+    ld      c, b
+    ld      b, 14 / 2
 .loop2:
+    ld      a, (de)
+    adc     a, c
+    ld      (de), a
+    inc     de
     ld      a, (de)
     adc     a, c
     ld      (de), a
@@ -628,9 +637,18 @@ _faddImprovedInline:
 ; Inputs:
 ;   DE = in1
 ;   HL = in2
+; Outputs:
+;    B = 0
+;   DE = in1 + 17
+;   HL = in1 + 16
     xor     a, a
-    ld      b, 16
+    ld      b, 8
 .loop:
+    ld      a, (de)
+    adc     a, (hl)
+    ld      (de), a
+    inc     hl
+    inc     de
     ld      a, (de)
     adc     a, (hl)
     ld      (de), a
@@ -646,9 +664,18 @@ _fsubImprovedInline:
 ; Inputs:
 ;   DE = in1
 ;   HL = in2
+; Outputs:
+;    B = 0
+;   DE = in1 + 34
+;   HL = in1 + 32
     xor     a, a
-    ld      b, 32
+    ld      b, 16
 .loop1:
+    ld      a, (de)
+    sbc     a, (hl)
+    ld      (de), a
+    inc     hl
+    inc     de
     ld      a, (de)
     sbc     a, (hl)
     ld      (de), a
