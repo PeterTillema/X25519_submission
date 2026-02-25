@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 554 bytes
-; Relocation size: 1013 bytes
+; Relocation size: 1024 bytes
 ; Data size: 388 bytes (+ padding)
 ; Read only data size: 64 bytes
 
@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       196,750,269 cc      ; Assuming yield_fn = NULL
+; Timing current:       195,391,068 cc      ; Assuming yield_fn = NULL
 tempVariables:
 tempVariables.mainLoopIndex := 0                   ; Main loop index
 tempVariables.arg2 := 1
@@ -457,9 +457,9 @@ _BigIntMul:
 ; Add z3 to _product + 16
     ld      de, _product + INT_SIZE / 2
     ld      hl, _z3
-    ld      b, (INT_SIZE + 2) / 2
+    ld      b, (INT_SIZE + 2) / 4
 .loop1:
-repeat 2
+repeat 4
     ld      a, (de)
     adc     a, (hl)
     ld      (de), a
@@ -467,10 +467,19 @@ repeat 2
     inc     de
 end repeat
     djnz    .loop1
+    ld      a, (de)
+    adc     a, (hl)
+    ld      (de), a
+    inc     hl
+    inc     de
+    ld      a, (de)
+    adc     a, (hl)
+    ld      (de), a
+    inc     de
     ld      c, b
-    ld      b, 7
+    ld      b, 2
 .loop2:
-repeat 2
+repeat 7
     ld      a, (de)
     adc     a, c
     ld      (de), a
@@ -589,9 +598,9 @@ _BigIntSub:
 ;   DE = out + INT_SIZE
 ;   HL = out + INT_SIZE - 1
 
-    ld      b, INT_SIZE / 8
+    ld      b, INT_SIZE / 4
 .subLoop1:
-repeat 8
+repeat 4
     ld      a, (de)         ; out[i] = a[i] - b[i] - carry
     sbc     a, (hl)
     ld      (de), a
@@ -692,10 +701,9 @@ _BigInt16Mul:
 .start:
     ld      (.mul16Arg2SMC), bc
     ld      iyl, a
-    neg
-    inc     a
-    ld      (.offset), a    ; 16 -> -15, 17 -> -16
-    add     a, 16
+    dec     a
+    ld      (.offset), a
+    and     a, 1            ; 15 -> 1, 16 -> 0
     add     a, a
     add     a, a
     add     a, a
@@ -738,10 +746,10 @@ repeat 16
 end repeat
     adc     a, 0
     ld      (de), a
+    ld      a, e
 .offset = $+1
-    ld      hl, -15
-    add     hl, de
-    ex      de, hl
+    sub     a, 0
+    ld      e, a
     pop     hl
     dec     iyl
     jp      nz, .mainLoop
