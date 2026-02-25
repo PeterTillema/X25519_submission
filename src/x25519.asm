@@ -384,8 +384,8 @@ _BigIntMul:
 ;     Step 1: Clear 64 + 34 bytes of _product and _z3 with zeroes
 ;     Step 2: Multiply low(in1) with low(in2) and store to _product
 ;     Step 3: Multiply high(in1) with high(in2) and store to _product + 32
-;     Step 4: Add low(in1) and high(in2) and store to _z3a
-;     Step 5: Add high(in1) and low(in2) and store to _z3b
+;     Step 4: Add low(in1) and high(in1) and store to _z3a
+;     Step 5: Add low(in2) and high(in2) and store to _z3b
 ;     Step 6: Multiply _z3a and _z3b and store + add to _z3
 ;     Step 7: Subtract _product and _product + 32 from z3
 ;     Step 8: Add _z3 to _product + 16
