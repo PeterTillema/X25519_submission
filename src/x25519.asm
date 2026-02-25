@@ -58,7 +58,9 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       194,573,790 cc      ; Assuming yield_fn = NULL
+; Fmul new = 61466 cc
+; Fmul old = 61463 cc
+; Timing current:       193,418,244 cc      ; Assuming yield_fn = NULL
 tempVariables:
 tempVariables.mainLoopIndex := 0                   ; Main loop index
 tempVariables.arg2 := 1
@@ -422,6 +424,8 @@ _BigIntMul:
     ldir
 ; Perform the first multiplication: low(in1) * low(in2)
     ld      de, _product
+    ld      hl, (0 shl 16) or (14 shl 8) or 0x18
+    ld      (_BigInt16Mul.jumpOffset), hl
     lea     hl, iy
     ld      bc, (ix + tempVariables.arg2)
     call    _BigInt16Mul
@@ -442,20 +446,24 @@ _BigIntMul:
     ld      iy, (ix + tempVariables.arg2)
     lea     hl, iy
     lea     bc, iy + 16
-    call    _BigInt16Add + 1
+    call    _BigInt16Add
 ; Multiply z3a with z3b and store to z3
     ld      e, _z3 and 0xFF
+    ld      hl, (0x4E shl 16) or (0x44 shl 8) or 0xFD       ; ld b, iyh \ ld c, (hl)
+    ld      (_BigInt16Mul.jumpOffset), hl
+    ld      hl, _BigInt16Mul.offset
+    inc     (hl)
     ld      hl, _z3a
     ld      bc, _z3b
-    ld      a, INT_SIZE / 2 + 1
+    ld      iyl, INT_SIZE / 2 + 1
     call    _BigInt16Mul.start
 ; Subtract _product from z3
+    ld      hl, _BigInt16Mul.offset
+    dec     (hl)
     ld      hl, _product
-    ld      de, _z3
     call    _BigInt32SubInline
 ; Subtract _product + 32 from z3
-    ld      e, _z3 and 0xFF
-    call    _BigInt32SubInline + 1
+    call    _BigInt32SubInline
 ; Add z3 to _product + 16
     ld      de, _product + INT_SIZE / 2
     ld      b, (INT_SIZE + 2) / 4
@@ -645,14 +653,15 @@ _BigInt16Add:
 ;    B = 0
 ;   DE = in1 + 17
 ;   HL = in1 + 16
-    xor     a, a
 repeat 16
     ld      a, (bc)
     adc     a, (hl)
     ld      (de), a
-    inc     hl
     inc     de
+if % <> %%
+    inc     hl
     inc     bc
+end if
 end repeat
     sbc     a, a
     and     a, 1
@@ -666,7 +675,7 @@ _BigInt32SubInline:
 ;    B = 0
 ;   DE = in1 + 34
 ;   HL = in1 + 32
-    xor     a, a
+    ld      e, _z3 and 0xFF
     ld      b, 2
 .loop1:
 repeat 16
@@ -689,25 +698,16 @@ end repeat
 _BigInt16Mul:
 ; Calculates the product of 2 16-byte integers, resulting in a 32-byte integer
 ; Inputs:
-;    A = count (16 or 17)
+;  IYL = count (16 or 17)
 ;   HL = in1
 ;   DE = out
 ;   BC = in2
 ; Outputs:
 ;   HL = in1 + count
 ;   DE = out + count
-    ld      a, 16
+    ld      iyl, 16
 .start:
     ld      (.mul16Arg2SMC), bc
-    ld      iyl, a
-    dec     a
-    ld      (.offset), a
-    and     a, 1            ; 15 -> 1, 16 -> 0
-    add     a, a
-    add     a, a
-    add     a, a
-    add     a, a
-    ld      (.jumpOffset), a
 .mainLoop:
     ld      b, (hl)
     inc     hl
@@ -725,11 +725,10 @@ _BigInt16Mul:
     inc     de
     inc     hl
 ; Other iterations
-.jumpOffset = $+1
-    jr      $+2             ; Skips one iteration if necessary
+.jumpOffset = $             ; Replaces the first "ld b, iyh \ ld c, (hl)" with a "jr $+16 \ nop" in case of mul 16 instead of 17
 repeat 16
-    ld      c, (hl)
     ld      b, iyh
+    ld      c, (hl)
     mlt     bc
     adc     a, c
     ld      c, a            ; Temporarily save a
@@ -741,13 +740,15 @@ repeat 16
     ld      (de), a
     ld      a, b
     inc     de
+if % <> %%
     inc     hl
+end if
 end repeat
     adc     a, 0
     ld      (de), a
     ld      a, e
 .offset = $+1
-    sub     a, 0
+    sub     a, 15
     ld      e, a
     pop     hl
     dec     iyl
