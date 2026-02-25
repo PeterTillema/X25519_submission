@@ -2,7 +2,7 @@ INT_SIZE = 32
 P_OFFSET = 19
 
 ; Code size: 554 bytes
-; Relocation size: 1024 bytes
+; Relocation size: 1021 bytes
 ; Data size: 388 bytes (+ padding)
 ; Read only data size: 64 bytes
 
@@ -60,7 +60,7 @@ _tls_x25519_secret:
 ; Timing first attempt: 482,792,828 cc
 ; Fmul new = 61466 cc
 ; Fmul old = 61463 cc
-; Timing current:       193,418,244 cc      ; Assuming yield_fn = NULL
+; Timing current:       192,950,467 cc      ; Assuming yield_fn = NULL
 tempVariables:
 tempVariables.mainLoopIndex := 0                   ; Main loop index
 tempVariables.arg2 := 1
@@ -418,9 +418,18 @@ _BigIntMul:
     push    de
 ; Setup the product and first part of z3 output
     ld      hl, _product
-    ld      c, (INT_SIZE * 2 - 1) + 17
+    ld      c, 16
     ld      (hl), b
     ld      de, _product + 1
+    ldir
+    ld      e, (_product + INT_SIZE) and 0xFF
+    ld      l, _product and 0xFF
+    ld      c, 16
+    ldir
+    inc     d
+    ld      e, _z3 and 0xFF
+    ld      l, _product and 0xFF
+    ld      c, 17
     ldir
 ; Perform the first multiplication: low(in1) * low(in2)
     ld      de, _product
@@ -579,9 +588,9 @@ end repeat
     add     a, (hl)
     ld      (hl), a
     ld      c, b
-    ld      b, (INT_SIZE - 2) / 10
+    ld      b, (INT_SIZE - 2) / 5
 .addLoop2:
-repeat 10
+repeat 5
     inc     hl
     ld      a, (hl)
     adc     a, c
