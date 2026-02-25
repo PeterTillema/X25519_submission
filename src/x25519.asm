@@ -58,7 +58,7 @@ _tls_x25519_secret:
 ;   arg4 = yield_fn
 ;   arg5 = yield_data
 ; Timing first attempt: 482,792,828 cc
-; Timing current:       195,391,068 cc      ; Assuming yield_fn = NULL
+; Timing current:       194,573,790 cc      ; Assuming yield_fn = NULL
 tempVariables:
 tempVariables.mainLoopIndex := 0                   ; Main loop index
 tempVariables.arg2 := 1
@@ -182,12 +182,12 @@ mainCalculationLoop:
 ; fsquare _d, _e
     ld      iy, _e              ; de -> _d
     ld      l, _e and 0xFF
-    call    _BigIntMul
+    call    _BigIntMul.hl
 ; fsquare _f, _a
     ld      e, _f and 0xFF
     ld      iy, _a
     ld      l, _a and 0xFF
-    call    _BigIntMul
+    call    _BigIntMul.hl
 ; fmul _a, _c, _a
     ld      iy, _c
     ld      e, _a and 0xFF
@@ -250,7 +250,7 @@ mainCalculationLoop:
     ld      iy, _e
     ld      e, _b and 0xFF
     ld      l, _e and 0xFF
-    call    _BigIntMul
+    call    _BigIntMul.hl
 ; swap _a, _b
     pop     bc
     ld      e, _a and 0xFF
@@ -282,7 +282,7 @@ mainCalculationLoop:
     ld      iy, _c
     ld      e, _c and 0xFF
     ld      l, _c and 0xFF
-    call    _BigIntMul
+    call    _BigIntMul.hl
     ld      a, (ix + tempVariables.mainLoopIndex)
     cp      a, 3
     jr      z, .continue2
@@ -408,12 +408,15 @@ _BigIntMul:
 ;   BC = 0
 ;   DE = _product + INT_SIZE * 2 - 1
 ;   HL = out + INT_SIZE - 1
-    ld      (.arg1), iy
+.iy:
+    db      0xFD              ; ld (*), hl -> ld (*), iy
+.hl:
+    ld      (.arg1), hl
     ld      (ix + tempVariables.arg2), hl
     push    de
-; Setup the product and z3 output
+; Setup the product and first part of z3 output
     ld      hl, _product
-    ld      c, (INT_SIZE * 2 - 1) + (INT_SIZE + 2)
+    ld      c, (INT_SIZE * 2 - 1) + 17
     ld      (hl), b
     ld      de, _product + 1
     ldir
@@ -429,34 +432,32 @@ _BigIntMul:
     call    _BigInt16Mul
 ; Add low(in1) and high(in1) and store to z3a
     ld      de, _z3a
-.arg1 = $+1
-    ld      hl, 0
-    ld      bc, INT_SIZE / 2
-    ldir
-    ld      e, _z3a and 0xFF
-    call    _BigInt16AddInline
+.arg1 = $+2
+    ld      iy, 0
+    lea     hl, iy
+    lea     bc, iy + 16
+    call    _BigInt16Add
 ; Add low(in2) to high(in2) and store to z3b
-    ld      de, _z3b
-    ld      hl, (ix + tempVariables.arg2)
-    ld      c, INT_SIZE / 2
-    ldir
-    ld      e, _z3b and 0xFF
-    call    _BigInt16AddInline + 1
+    inc     de
+    ld      iy, (ix + tempVariables.arg2)
+    lea     hl, iy
+    lea     bc, iy + 16
+    call    _BigInt16Add + 1
 ; Multiply z3a with z3b and store to z3
+    ld      e, _z3 and 0xFF
     ld      hl, _z3a
-    ld      de, _z3
     ld      bc, _z3b
     ld      a, INT_SIZE / 2 + 1
     call    _BigInt16Mul.start
 ; Subtract _product from z3
     ld      hl, _product
+    ld      de, _z3
     call    _BigInt32SubInline
 ; Subtract _product + 32 from z3
-    ld      hl, _product + INT_SIZE
+    ld      e, _z3 and 0xFF
     call    _BigInt32SubInline + 1
 ; Add z3 to _product + 16
     ld      de, _product + INT_SIZE / 2
-    ld      hl, _z3
     ld      b, (INT_SIZE + 2) / 4
 .loop1:
 repeat 4
@@ -477,9 +478,9 @@ end repeat
     ld      (de), a
     inc     de
     ld      c, b
-    ld      b, 2
+    ld      b, 7
 .loop2:
-repeat 7
+repeat 2
     ld      a, (de)
     adc     a, c
     ld      (de), a
@@ -528,9 +529,9 @@ end repeat
     ld      a, (de)
     adc     a, b
     ld      (hl), a
-    ld      b, (INT_SIZE - 2) / 15
+    ld      b, (INT_SIZE - 2) / 6
 .addLoop:
-repeat 15
+repeat 6
     inc     hl
     inc     de
     ld      a, (de)
@@ -570,9 +571,9 @@ end repeat
     add     a, (hl)
     ld      (hl), a
     ld      c, b
-    ld      b, (INT_SIZE - 2) / 5
+    ld      b, (INT_SIZE - 2) / 10
 .addLoop2:
-repeat 5
+repeat 10
     inc     hl
     ld      a, (hl)
     adc     a, c
@@ -620,9 +621,9 @@ end repeat
     sub     a, c
     ld      (hl), a
     ld      c, b
-    ld      b, (INT_SIZE - 2) / 5
+    ld      b, (INT_SIZE - 2) / 6
 .subLoop2:
-repeat 5
+repeat 6
     inc     hl
     ld      a, (hl)
     sbc     a, c
@@ -635,27 +636,26 @@ end repeat
     ld      (hl), a
     ret
 
-_BigInt16AddInline:
+_BigInt16Add:
 ; Inputs:
-;   DE = in1
+;   BC = in1
+;   DE = out
 ;   HL = in2
 ; Outputs:
 ;    B = 0
 ;   DE = in1 + 17
 ;   HL = in1 + 16
     xor     a, a
-    ld      b, 2
-.loop:
-repeat 8
-    ld      a, (de)
+repeat 16
+    ld      a, (bc)
     adc     a, (hl)
     ld      (de), a
     inc     hl
     inc     de
+    inc     bc
 end repeat
-    djnz    .loop
-    ld      a, b
-    adc     a, b
+    sbc     a, a
+    and     a, 1
     ld      (de), a
     ret
 
@@ -667,7 +667,6 @@ _BigInt32SubInline:
 ;   DE = in1 + 34
 ;   HL = in1 + 32
     xor     a, a
-    ld      de, _z3
     ld      b, 2
 .loop1:
 repeat 16
@@ -695,8 +694,8 @@ _BigInt16Mul:
 ;   DE = out
 ;   BC = in2
 ; Outputs:
-;   HL = in1 + 16
-;   DE = out + 16
+;   HL = in1 + count
+;   DE = out + count
     ld      a, 16
 .start:
     ld      (.mul16Arg2SMC), bc
@@ -787,9 +786,9 @@ reloc.offset := reloc.base - reloc.data
     private _e
     private _f
     private _product
+    private _z3
     private _z3a
     private _z3b
-    private _z3
 
 ; Align _a to 0xXXXX00
     db      ((0xC0 - (($ and 0xFF))) and 0xFF) dup 0
