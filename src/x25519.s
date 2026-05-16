@@ -1,31 +1,31 @@
-INT_SIZE = 32
-P_OFFSET = 19
+.equ INT_SIZE, 32
+.equ P_OFFSET, 19
 
 ; Code size: 553 bytes
 ; Relocation size: 1020 bytes
 ; Data size: 388 bytes (+ padding)
 ; Read only data size: 64 bytes
 
-    assume adl=1
+    .assume adl=1
 
-define ti? ti
-namespace ti?
-?cursorImage               := 0E30800h
-end namespace
+.equ ti.cursorImage, 0E30800h
 
-    section .text
-    public _tls_x25519_secret
-    public _tls_x25519_publickey
+    .global _tls_x25519_secret
+    .type   _tls_x25519_secret, @function
+    .global _tls_x25519_publickey
+    .type   _tls_x25519_publickey, @function
 
-arg1 := 3
-arg2 := 6
-arg3 := 9
-arg4 := 12
-sparg1 := 6
-sparg2 := 9
-sparg3 := 12
-sparg4 := 15
-sparg5 := 18
+    .section .text
+
+.equ arg1, 3
+.equ arg2, 6
+.equ arg3, 9
+.equ arg4, 12
+.equ sparg1, 6
+.equ sparg2, 9
+.equ sparg3, 12
+.equ sparg4, 15
+.equ sparg5, 18
 
 _tls_x25519_publickey:
 ; Inputs:
@@ -47,7 +47,9 @@ _tls_x25519_publickey:
     ld      hl, (iy + arg1)
     push    hl
     call    _tls_x25519_secret
-    pop     hl, hl, hl, hl, hl
+.rept 5
+    pop     hl
+.endr
     ret
 
 _tls_x25519_secret:
@@ -60,19 +62,19 @@ _tls_x25519_secret:
 ; Timing first attempt: 482,792,828 cc
 ; Timing current:       192,853,078 cc      ; Assuming yield_fn = NULL
 tempVariables:
-tempVariables.mainLoopIndex := 0                   ; Main loop index
-tempVariables.arg2 := 1
+.equ tempVariables.mainLoopIndex, 0                   ; Main loop index
+.equ tempVariables.arg2, 1
 
-tempVariables.size := 4
+.equ tempVariables.size, 4
 
     push    ix
     ld      ix, -tempVariables.size
     add     ix, sp
     ld      sp, ix
 ; Relocate code to be more performant
-    ld      hl, reloc.data
-    ld      de, ti.cursorImage
-    ld      bc, reloc.data.len
+    ld      hl, _x25519_reloc_load_start
+    ld      de, _x25519_reloc_run_start
+    ld      bc, _x25519_reloc_len
     ldir
 ; Copy point to actual point and edit byte 31
     ld      de, _point
@@ -115,7 +117,7 @@ tempVariables.size := 4
     ldir
     ld      hl, _clamped + INT_SIZE - 1
     dec     b               ; b = loop index
-    ld      c, 1 shl 6      ; c = bit mask
+    ld      c, 1 << 6       ; c = bit mask
     call    mainCalculationLoop
     lea     hl, ix + tempVariables.size
     ld      sp, hl
@@ -161,100 +163,100 @@ mainCalculationLoop:
     call    _BigIntSwap
 ; fadd _e, _a, _c
     ex      de, hl              ; de -> _e
-    ld      l, _a and 0xFF
+    ld      l, _a & 0xFF
     ld      bc, INT_SIZE
     ldir
-    ld      e, _e and 0xFF      ; hl -> _c
+    ld      e, _e & 0xFF      ; hl -> _c
     call    _BigIntAdd
 ; fsub _a, _a, _c
-    ld      e, _a and 0xFF
-    ld      l, _c and 0xFF
+    ld      e, _a & 0xFF
+    ld      l, _c & 0xFF
     call    _BigIntSub
 ; fadd _c, _b, _d
-    ld      l, _b and 0xFF      ; de -> _c
+    ld      l, _b & 0xFF      ; de -> _c
     ld      c, INT_SIZE
     ldir
-    ld      e, _c and 0xFF      ; hl -> _d
+    ld      e, _c & 0xFF      ; hl -> _d
     call    _BigIntAdd
 ; fsub _b, _b, _d
-    ld      l, _d and 0xFF      ; de -> _b
+    ld      l, _d & 0xFF      ; de -> _b
     call    _BigIntSub
 ; fsquare _d, _e
     ld      iy, _e              ; de -> _d
-    ld      l, _e and 0xFF
+    ld      l, _e & 0xFF
     call    _BigIntMul.hl
 ; fsquare _f, _a
-    ld      e, _f and 0xFF
+    ld      e, _f & 0xFF
     ld      iy, _a
-    ld      l, _a and 0xFF
+    ld      l, _a & 0xFF
     call    _BigIntMul.hl
 ; fmul _a, _c, _a
     ld      iy, _c
-    ld      e, _a and 0xFF
+    ld      e, _a & 0xFF
     ld      l, e
     call    _BigIntMul
 ; fmul _c, _b, _e
     ld      iy, _b
-    ld      e, _c and 0xFF
-    ld      l, _e and 0xFF
+    ld      e, _c & 0xFF
+    ld      l, _e & 0xFF
     call    _BigIntMul
 ; fadd _e, _a, _c
-    ld      e, _e and 0xFF
-    ld      l, _a and 0xFF
+    ld      e, _e & 0xFF
+    ld      l, _a & 0xFF
     ld      c, INT_SIZE
     ldir
-    ld      e, _e and 0xFF      ; hl -> _c
+    ld      e, _e & 0xFF      ; hl -> _c
     call    _BigIntAdd
 ; fsub _a, _a, _c
-    ld      e, _a and 0xFF
-    ld      l, _c and 0xFF
+    ld      e, _a & 0xFF
+    ld      l, _c & 0xFF
     call    _BigIntSub
 ; fsquare _b, _a
     ld      iy, _a
-    ld      l, _a and 0xFF
-    ld      e, _b and 0xFF
+    ld      l, _a & 0xFF
+    ld      e, _b & 0xFF
     call    _BigIntMul
 ; copy _d, _c
-    ld      e, _c and 0xFF
+    ld      e, _c & 0xFF
     inc     hl                  ; hl -> _d
     ld      c, INT_SIZE
     ldir
 ; fsub _c, _c, _f
-    ld      e, _c and 0xFF
-    ld      l, _f and 0xFF
+    ld      e, _c & 0xFF
+    ld      l, _f & 0xFF
     call    _BigIntSub
 ; fmul _a, _c, _121665
     ld      iy, _c
-    ld      e, _a and 0xFF
+    ld      e, _a & 0xFF
     ld      hl, _121665
     call    _BigIntMul
 ; fadd _a, _a, _d
-    ld      e, _a and 0xFF
-    ld      l, _d and 0xFF
+    ld      e, _a & 0xFF
+    ld      l, _d & 0xFF
     call    _BigIntAdd
 ; fmul _c, _c, _a
     ld      iy, _c              ; de -> _c
-    ld      l, _a and 0xFF
+    ld      l, _a & 0xFF
     call    _BigIntMul
 ; fmul _a, _d, _f
     ld      iy, _d
-    ld      e, _a and 0xFF
-    ld      l, _f and 0xFF
+    ld      e, _a & 0xFF
+    ld      l, _f & 0xFF
     call    _BigIntMul
 ; fmul _d, _b, _point
     ld      iy, _b
-    ld      e, _d and 0xFF
+    ld      e, _d & 0xFF
     ld      hl, _point
     call    _BigIntMul
 ; fsquare _b, _e
     ld      iy, _e
-    ld      e, _b and 0xFF
-    ld      l, _e and 0xFF
+    ld      e, _b & 0xFF
+    ld      l, _e & 0xFF
     call    _BigIntMul.hl
 ; swap _a, _b
     pop     bc
-    ld      e, _a and 0xFF
-    ld      l, _b and 0xFF
+    ld      e, _a & 0xFF
+    ld      l, _b & 0xFF
     ld      iyh, INT_SIZE / 2 * 2
     call    _BigIntSwap
 
@@ -265,13 +267,13 @@ mainCalculationLoop:
     sbc     hl, hl
     add     hl, de          ; hl -> clamped pointer, decremented if the carry flag was set
     dec     b
-    jq      nz, mainCalculationLoop
+    jp      nz, mainCalculationLoop
 
 ; Copy _c to _b
     inc     d
-    ld      e, _b and 0xFF
+    ld      e, _b & 0xFF
     inc     h
-    ld      l, _c and 0xFF
+    ld      l, _c & 0xFF
     ld      c, INT_SIZE
     ldir
 
@@ -280,7 +282,7 @@ mainCalculationLoop:
 .inverseLoop:
 ; fsquare _c, _c
     ld      iy, _c
-    ld      e, _c and 0xFF
+    ld      e, _c & 0xFF
     ld      l, e
     call    _BigIntMul.hl
     ld      a, (ix + tempVariables.mainLoopIndex)
@@ -290,8 +292,8 @@ mainCalculationLoop:
     jr      z, .continue2
 ; fmul _c, _c, _b
     ld      iy, _c
-    ld      e, _c and 0xFF
-    ld      l, _b and 0xFF
+    ld      e, _c & 0xFF
+    ld      l, _b & 0xFF
     call    _BigIntMul
 .continue2:
     dec     (ix + tempVariables.mainLoopIndex)
@@ -301,7 +303,7 @@ mainCalculationLoop:
 ; fmul (ix + sparg1 + tempVariables.size), _a, _c
     ld      de, (ix + sparg1 + tempVariables.size)
     ld      iy, _a
-    ld      l, _c and 0xFF
+    ld      l, _c & 0xFF
     call    _BigIntMul
 ; Out is now in the range [0, 2^256), which is slightly more than 2p. Subtract p and swap if necessary. Repeat this step
 ; to account for the possible output in the range of [2p, 2^256).
@@ -342,7 +344,9 @@ mainCalculationLoop:
 _jumpHL:
     jp      (hl)
 
-virtual at ti.cursorImage
+    .section .x25519.reloc, "ax", @progbits
+
+_x25519_reloc_run_start:
 _BigIntSwap:
 ; Eventually swaps 2 big integers based on the carry flag. Performs the swap in constant time to prevent timing attacks
 ; Inputs:
@@ -358,7 +362,7 @@ _BigIntSwap:
 ;   HL = b + INT_SIZE (+ INT_SIZE)
 
 .swapLoop:
-repeat 2
+.rept 2
     ld      a, (de)         ; t = c & (a[i] ^ b[i])
     xor     a, (hl)
     and     a, c
@@ -370,7 +374,7 @@ repeat 2
     ld      (de), a
     inc     hl
     inc     de
-end repeat
+.endr
     dec     iyh
     jr      nz, .swapLoop
     ret
@@ -408,9 +412,9 @@ _BigIntMul:
 ;   BC = 0
 ;   DE = _product + INT_SIZE * 2 - 1
 ;   HL = out + INT_SIZE - 1
-.iy:
+_BigIntMul.iy:
     db      0xFD              ; ld (*), hl -> ld (*), iy
-.hl:
+_BigIntMul.hl:
     ld      (.arg1), hl
     ld      (ix + tempVariables.arg2), hl
     push    de
@@ -420,32 +424,32 @@ _BigIntMul:
     ld      (hl), b
     ld      de, _product + 1
     ldir
-    ld      e, (_product + INT_SIZE) and 0xFF
-    ld      l, _product and 0xFF
+    ld      e, (_product + INT_SIZE) & 0xFF
+    ld      l, _product & 0xFF
     ld      c, INT_SIZE / 2
     ldir
     inc     d
-    ld      e, _z3 and 0xFF
-    ld      l, _product and 0xFF
+    ld      e, _z3 & 0xFF
+    ld      l, _product & 0xFF
     ld      c, INT_SIZE / 2 + 1
     ldir
 ; Perform the first multiplication: low(in1) * low(in2)
     dec     d
-    ld      e, _product and 0xFF
-    ld      hl, (0 shl 16) or (14 shl 8) or 0x18        ; jr $+14
+    ld      e, _product & 0xFF
+    ld      hl, (0 << 16) | (14 << 8) | 0x18        ; jr $+14
     ld      (_BigInt16Mul.jumpOffset), hl
-    lea     hl, iy
+    lea     hl, iy + 0
     ld      bc, (ix + tempVariables.arg2)
     call    _BigInt16Mul
 ; Perform the next multiplication: high(in1) * high(in2)
     ld      iy, (ix + tempVariables.arg2)
     lea     bc, iy + (INT_SIZE / 2)
-    ld      e, (_product + INT_SIZE) and 0xFF
+    ld      e, (_product + INT_SIZE) & 0xFF
     call    _BigInt16Mul
 ; Add low(in1) and high(in1) and store to z3a
     inc     d
-    ld      e, _z3a and 0xFF
-.arg1 = $+2
+    ld      e, _z3a & 0xFF
+.set .arg1, . + 2
     ld      iy, 0
     call    _BigIntAddLowHigh
 ; Add low(in2) to high(in2) and store to z3b
@@ -453,8 +457,8 @@ _BigIntMul:
     ld      iy, (ix + tempVariables.arg2)
     call    _BigIntAddLowHigh
 ; Multiply z3a with z3b and store to z3
-    ld      e, _z3 and 0xFF
-    ld      hl, (0x4E shl 16) or (0x44 shl 8) or 0xFD       ; ld b, iyh \ ld c, (hl)
+    ld      e, _z3 & 0xFF
+    ld      hl, (0x4E << 16) | (0x44 << 8) | 0xFD   ; ld b, iyh \ ld c, (hl)
     ld      (_BigInt16Mul.jumpOffset), hl
     ld      hl, _BigInt16Mul.offset
     inc     (hl)
@@ -471,38 +475,38 @@ _BigIntMul:
     call    _BigIntSubFromZ3
 ; Add z3 to _product + 16
     dec     d
-    ld      e, (_product + INT_SIZE / 2) and 0xFF
+    ld      e, (_product + INT_SIZE / 2) & 0xFF
     ld      b, (INT_SIZE + 2) / 11
-.loop1:
-repeat 11
+_BigIntMul.loop1:
+.rept 11
     ld      a, (de)
     adc     a, (hl)
     ld      (de), a
     inc     hl
     inc     de
-end repeat
-    djnz    .loop1
+.endr
+    djnz    _BigIntMul.loop1
     ld      a, (de)
     adc     a, (hl)
     ld      (de), a
     ld      c, b
     ld      b, 7
-.loop2:
-repeat 2
+_BigIntMul.loop2:
+.rept 2
     inc     de
     ld      a, (de)
     adc     a, c
     ld      (de), a
-end repeat
-    djnz    .loop2
+.endr
+    djnz    _BigIntMul.loop2
 
 ; For the lower 32 bytes of the product, calculate sum(38 * product[i + 32]) and add to product + 32 directly
     dec     h
-    ld      l, (_product + INT_SIZE) and 0xFF
-    ld      e, _product and 0xFF
+    ld      l, (_product + INT_SIZE) & 0xFF
+    ld      e, _product & 0xFF
     xor     a, a
 .addMul38Loop:
-repeat 4
+.irp i, 0,1,2,3
     ld      c, (hl)
     ld      b, 2 * P_OFFSET
     mlt     bc
@@ -516,10 +520,10 @@ repeat 4
     ld      (hl), a
     inc     de
     ld      a, b
-if % <> %%
+.if \i != 3
     inc     hl
-end if
-end repeat
+.endif
+.endr
     inc     l               ; l = 0 -> stop, since then it's _product + INT_SIZE * 2 = XXXX00
     jr      nz, .addMul38Loop
 
@@ -540,13 +544,13 @@ end repeat
     ld      (hl), a
     ld      b, (INT_SIZE - 2) / 6
 .addLoop:
-repeat 6
+.rept 6
     inc     hl
     inc     de
     ld      a, (de)
     adc     a, c
     ld      (hl), a
-end repeat
+.endr
     djnz    .addLoop
     ret
 
@@ -565,13 +569,13 @@ _BigIntAdd:
 
     ld      b, INT_SIZE / 8
 .addLoop1:
-repeat 8
+.rept 8
     ld      a, (de)         ; out[i] = a[i] + b[i] + carry
     adc     a, (hl)
     ld      (de), a
     inc     hl
     inc     de
-end repeat
+.endr
     djnz    .addLoop1
     sbc     a, a
     and     a, 2 * P_OFFSET ; a -> cf ? 38 : 0
@@ -582,12 +586,12 @@ end repeat
     ld      c, b
     ld      b, (INT_SIZE - 2) / 6
 .addLoop2:
-repeat 6
+.rept 6
     inc     hl
     ld      a, (hl)
     adc     a, c
     ld      (hl), a
-end repeat
+.endr
     djnz    .addLoop2
     inc     hl
     ld      a, (hl)
@@ -610,13 +614,13 @@ _BigIntSub:
 
     ld      b, INT_SIZE / 4
 .subLoop1:
-repeat 4
+.rept 4
     ld      a, (de)         ; out[i] = a[i] - b[i] - carry
     sbc     a, (hl)
     ld      (de), a
     inc     hl
     inc     de
-end repeat
+.endr
     djnz    .subLoop1
 
 ; Now out is in the range (-2^255+19, 2^255-19). If the carry flag is set, the value is "negative", but we can easily
@@ -632,12 +636,12 @@ end repeat
     ld      c, b
     ld      b, (INT_SIZE - 2) / 6
 .subLoop2:
-repeat 6
+.rept 6
     inc     hl
     ld      a, (hl)
     sbc     a, c
     ld      (hl), a
-end repeat
+.endr
     djnz    .subLoop2
     inc     hl
     ld      a, (hl)
@@ -653,18 +657,18 @@ _BigIntAddLowHigh:
 ;   BC = in1 + 15
 ;   DE = in1 + 16
 ;   HL = in1 + 15
-    lea     hl, iy
+    lea     hl, iy + 0
     lea     bc, iy + 16
-repeat 16
+.irp i, 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
     ld      a, (bc)
     adc     a, (hl)
     ld      (de), a
     inc     de
-if % <> %%
+.if \i != 15
     inc     hl
     inc     bc
-end if
-end repeat
+.endif
+.endr
     sbc     a, a
     and     a, 1
     ld      (de), a
@@ -677,17 +681,17 @@ _BigIntSubFromZ3:
 ;    B = 0
 ;   DE = in1 + 34
 ;   HL = in1 + 32
-    ld      e, _z3 and 0xFF
+    ld      e, _z3 & 0xFF
     ld      b, 2
-.loop1:
-repeat 16
+_BigIntSubFromZ3.loop1:
+.rept 16
     ld      a, (de)
     sbc     a, (hl)
     ld      (de), a
     inc     hl
     inc     de
-end repeat
-    djnz    .loop1
+.endr
+    djnz    _BigIntSubFromZ3.loop1
     ld      a, (de)
     sbc     a, b
     ld      (de), a
@@ -708,14 +712,15 @@ _BigInt16Mul:
 ;   HL = in1 + count
 ;   DE = out + count
     ld      iyl, 16
-.start:
+_BigInt16Mul.start:
     ld      (.mul16Arg2SMC), bc
 .mainLoop:
+
     ld      b, (hl)
     inc     hl
     push    hl
     ld      iyh, b
-.mul16Arg2SMC = $+1
+.set .mul16Arg2SMC, . + 1
     ld      hl, 0           ; hl -> in2
 ; First iteration
     ld      c, (hl)
@@ -727,8 +732,8 @@ _BigInt16Mul:
     inc     de
     inc     hl
 ; Other iterations
-.jumpOffset = $             ; Replaces the first "ld b, iyh \ ld c, (hl)" with a "jr $+16 \ nop" in case of mul 16 instead of 17
-repeat 16
+_BigInt16Mul.jumpOffset = .             ; Replaces the first "ld b, iyh \ ld c, (hl)" with a "jr $+16 \ nop" in case of mul 16 instead of 17
+.irp i, 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
     ld      b, iyh
     ld      c, (hl)
     mlt     bc
@@ -742,110 +747,62 @@ repeat 16
     ld      (de), a
     ld      a, b
     inc     de
-if % <> %%
+.if \i != 15
     inc     hl
-end if
-end repeat
+.endif
+.endr
     adc     a, 0
     ld      (de), a
     ld      a, e
-.offset = $+1
+_BigInt16Mul.offset = . + 1
     sub     a, 15
     ld      e, a
     pop     hl
     dec     iyl
     jp      nz, .mainLoop
     ret
+_x25519_reloc_run_end:
 
-    private	reloc_rodata
-load reloc_rodata: $-$$ from $$
-end virtual
+    .section .x25519.data, "aw", @progbits
 
-
-repeat 1, x:$-_tls_x25519_publickey
-    display 'Code size: ', `x, ' bytes', 10
-end repeat
-
-repeat 1, x:reloc.data.len
-    display 'Relocation size: ', `x, ' bytes', 10
-end repeat
-
-    section	.data
-    private	reloc.data
-    private	reloc.data.len
-reloc.data:
-    db	reloc_rodata
-.len := $-.
-reloc.base := ti.cursorImage
-reloc.offset := reloc.base - reloc.data
-
-    section .data
-    private _point
-    private _clamped
-    private _a
-    private _b
-    private _c
-    private _d
-    private _e
-    private _f
-    private _product
-    private _z3
-    private _z3a
-    private _z3b
-
-; Align _a to 0xXXXX00
-    db      ((0xC0 - (($ and 0xFF))) and 0xFF) dup 0
 ; Duplicate of the input point, but with msb reset
 _point:
-    rb      INT_SIZE
+    .space  INT_SIZE
 ; Used for scalar
 _clamped:
-    rb      INT_SIZE
+    .space  INT_SIZE
 _a:
-    rb      INT_SIZE
+    .space  INT_SIZE
 _c:
-    rb      INT_SIZE
+    .space  INT_SIZE
 _b:
-    rb      INT_SIZE
+    .space  INT_SIZE
 _d:
-    rb      INT_SIZE
+    .space  INT_SIZE
 _e:
-    rb      INT_SIZE
+    .space  INT_SIZE
 _f:
-    rb      INT_SIZE
+    .space  INT_SIZE
 ; Used for multiplication
 _product:
-    rb      INT_SIZE * 2
+    .space  INT_SIZE * 2
 _z3:
-    rb      34
+    .space  34
 _z3a:
-    rb      17
+    .space  17
 _z3b:
-    rb      17
+    .space  17
 
-
-repeat 1, x:$-_point
-    display 'Data size: ', `x, ' bytes', 10
-end repeat
-
-
-    section .rodata
-    private _9
-    private _121665
+    .section .rodata
 
 _9:
-    db      0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    .db     0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    .db     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    .db     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    .db     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 
 _121665:
-    db      0x41, 0xDB, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00
-    db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-
-
-repeat 1, x:$-_9
-    display 'Read only data size: ', `x, ' bytes', 10
-end repeat
+    .db     0x41, 0xDB, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00
+    .db     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    .db     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    .db     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
