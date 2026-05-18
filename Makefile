@@ -6,6 +6,7 @@ NAME = DEMO
 ICON = icon.png
 DESCRIPTION = "CE C Toolchain Demo"
 COMPRESSED = NO
+LINKER_SCRIPT = relocate.ld
 
 CFLAGS = -Wall -Wextra -Oz
 CXXFLAGS = -Wall -Wextra -Oz
