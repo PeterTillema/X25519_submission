@@ -119,10 +119,23 @@ tempVariables:
     dec     b               ; b = loop index
     ld      c, 1 << 6       ; c = bit mask
     call    mainCalculationLoop
+
+; Reject an all-zero shared secret (RFC 7748 §6.1. RFC 7748)
+    ld      hl, (ix + sparg1 + tempVariables.size)
+    ld      b, INT_SIZE
+    xor     a, a
+.checkNonzero:
+    or      a, (hl)
+    inc     hl
+    djnz    .checkNonzero
+
+    neg
+    sbc     a, a
+    and     a, 1
+    
     lea     hl, ix + tempVariables.size
     ld      sp, hl
     pop     ix
-    ld      a, 1
     ret
 
 mainCalculationLoop:
